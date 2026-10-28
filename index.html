@@ -1004,7 +1004,7 @@ $('#liveRetrack').addEventListener('click', () => { if (!current || !current.sho
 
 // ---------- LIVE CAMERA ----------
 const cam = $('#cam'), liveOv = $('#liveOv'), liveWrap = $('#liveWrap'), liveMag = $('#liveMag');
-const L = { stream: null, running: false, facing: 'environment', W: 0, H: 0, k: 1, ring: [], ref: null, p0: null, r: 10, dir: 1, state: 'setup', thr: 12, noise: 3, stable: 0, impactFrame: null, post: 0, fpsEst: 30, lastT: -1, lock: null, pending: false, c: null, ctx: null };
+const L = { stream: null, running: false, facing: 'environment', W: 0, H: 0, k: 1, ring: [], ref: null, p0: null, r: 10, dir: 1, state: 'setup', thr: 12, noise: 3, stable: 0, impactFrame: null, post: 0, fpsEst: 30, lastT: -1, lock: null, pending: false, c: null, ctx: null, mode: null, camFps: 30 };
 const liveSupported = !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
 $('#btnLive').addEventListener('click', async () => {
   show('live'); $('#liveResult').hidden = true;
@@ -1039,9 +1039,19 @@ async function startCamera() {
   const caps = tr.getCapabilities ? tr.getCapabilities() : {}; const zf = $('#zoomField');
   if (caps.zoom && caps.zoom.max > caps.zoom.min) { L.track = tr; const zr = $('#zoomRange'); zr.min = caps.zoom.min; zr.max = Math.min(caps.zoom.max, 6); zr.step = caps.zoom.step || 0.1; zr.value = st.zoom || caps.zoom.min; $('#zoomVal').textContent = (+zr.value).toFixed(1); zf.hidden = false; }
   else { zf.hidden = true; L.track = null; }
-  if ('requestVideoFrameCallback' in cam) { if (!L.pending) { L.pending = true; cam.requestVideoFrameCallback(liveFrame); } }
-  else { L.useRaf = true; requestAnimationFrame(liveRaf); }
+  L.camFps = (st.frameRate && st.frameRate > 5) ? st.frameRate : 30;
+  L.nFrames = 0; L.lastSig = null; L.t0raf = null; L.lastKeptSec = null; L.mode = null; L.lastMedia = null; L.mediaAdvances = false; L.lastPresented = null;
+  if ('requestVideoFrameCallback' in cam && !location.search.includes('raf')) { L.mode = 'rvfc'; if (!L.pending) { L.pending = true; cam.requestVideoFrameCallback(liveFrame); } }
+  else startRaf();
+  // watchdog: Safari sometimes stops delivering frame callbacks for a camera stream; switch to polling
+  const myStream = L.stream; let lastN = -1;
+  const wd = setInterval(() => {
+    if (!L.running || L.stream !== myStream) { clearInterval(wd); return; }
+    if (L.mode === 'rvfc' && (L.nFrames || 0) === lastN) startRaf();
+    lastN = L.nFrames || 0;
+  }, 900);
 }
+function startRaf() { if (L.mode === 'raf') return; L.mode = 'raf'; L.lastSig = null; L.t0raf = null; requestAnimationFrame(liveRaf); }
 function stopCamera() {
   L.running = false;
   if (L.stream) { for (const t of L.stream.getTracks()) t.stop(); L.stream = null; }
@@ -1049,18 +1059,47 @@ function stopCamera() {
   if (L.lock) { try { L.lock.release(); } catch (e) {} L.lock = null; }
   liveWrap.className = 'frameWrap';
 }
-function grabLive(t) {
+function greyFrame() {
   L.ctx.drawImage(cam, 0, 0, L.W, L.H);
   const d = L.ctx.getImageData(0, 0, L.W, L.H).data, g = new Uint8Array(L.W * L.H);
   for (let i = 0, j = 0; i < g.length; i++, j += 4) g[i] = (d[j] * 77 + d[j + 1] * 150 + d[j + 2] * 29) >> 8;
-  const fr = { t, g }; L.ring.push(fr); while (L.ring.length > 60 && L.state !== 'tracking') L.ring.shift(); return fr;
+  return g;
 }
-function liveRaf(now) { if (!L.running) return; const t = now / 1000; if (t - L.lastT >= 1 / 61) { L.lastT = t; const fr = grabLive(t); liveStep(fr); } requestAnimationFrame(liveRaf); }
+function grabLive(t, g) {
+  const fr = { t, g: g || greyFrame() }; L.ring.push(fr); while (L.ring.length > 60 && L.state !== 'tracking') L.ring.shift(); return fr;
+}
+function liveRaf(now) {
+  if (!L.running || L.mode !== 'raf') return;
+  requestAnimationFrame(liveRaf);
+  const g = greyFrame();
+  const sec = now / 1000; if (L.t0raf == null) L.t0raf = sec;
+  // An unchanged picture sooner than a camera frame interval is the same frame again: skip it.
+  // An unchanged picture a full interval later is kept, so the frame record stays continuous in time.
+  const prev = L.ring.length ? L.ring[L.ring.length - 1].g : null;
+  let changed = 0;
+  if (prev) { for (let i = 0; i < g.length; i += 3) { if (Math.abs(g[i] - prev[i]) > 6 && ++changed > 12) break; } }
+  if (prev && changed <= 12 && sec - (L.lastKeptSec == null ? -1 : L.lastKeptSec) < 0.9 / L.camFps) return;
+  let t = Math.round((sec - L.t0raf) * L.camFps) / L.camFps; // snap to the camera's frame grid
+  if (t <= L.lastT) t = L.lastT + 1 / L.camFps; // a changed picture is a new frame, even if the clock says otherwise
+  L.lastKeptSec = sec; L.lastT = t; liveStep(grabLive(t, g));
+}
 function liveFrame(now, meta) {
-  L.pending = false; if (!L.running) return;
-  const t = meta.mediaTime != null ? meta.mediaTime : now / 1000;
-  if (t > L.lastT + 1e-4) { L.lastT = t; const fr = grabLive(t); liveStep(fr); }
+  L.pending = false; if (!L.running || L.mode !== 'rvfc') return;
   L.pending = true; cam.requestVideoFrameCallback(liveFrame);
+  // Some browsers report a media time that never advances for a camera stream; fall back to the callback clock.
+  const mt = meta && typeof meta.mediaTime === 'number' ? meta.mediaTime : NaN;
+  let t;
+  if (mt > (L.lastMedia == null ? -1 : L.lastMedia) + 1e-4) { L.lastMedia = mt; L.mediaAdvances = true; t = mt; }
+  else if (L.mediaAdvances) return; // same frame presented again
+  else {
+    const pf = meta && typeof meta.presentedFrames === 'number' ? meta.presentedFrames : null;
+    if (pf != null && pf === L.lastPresented) return;
+    L.lastPresented = pf; const sec = now / 1000; if (L.t0raf == null) L.t0raf = sec;
+    t = Math.round((sec - L.t0raf) * L.camFps) / L.camFps;
+    if (t <= L.lastT) t = L.lastT + 1 / L.camFps;
+  }
+  if (t <= L.lastT) return;
+  L.lastT = t; liveStep(grabLive(t));
 }
 function liveStep(fr) {
   L.nFrames = (L.nFrames || 0) + 1;
@@ -1069,7 +1108,7 @@ function liveStep(fr) {
     const fps = L.diagT ? (L.nFrames - (L.diagN || 0)) / ((nowMs - L.diagT) / 1000) : 0;
     L.diagT = nowMs; L.diagN = L.nFrames;
     const names = { setup: L.p0 ? 'ball marked, not armed' : 'waiting for you to tap the ball', armed: 'armed', tracking: 'tracking a launch', wait: 'waiting for the next ball' };
-    $('#liveDiag').textContent = `Camera running · ${L.vw}×${L.vh} · ${fps.toFixed(0)} frames/s analysed · ${names[L.state] || L.state}`;
+    $('#liveDiag').textContent = `Camera running · ${L.vw}×${L.vh} · ${fps.toFixed(0)} frames/s analysed${L.mode === 'raf' ? ' (polling)' : ''} · ${names[L.state] || L.state}`;
   }
   if (L.p0) {
     const base = L.ref || (L.ring.length > 1 ? L.ring[L.ring.length - 2].g : null);
@@ -1135,11 +1174,12 @@ function liveTap(ev) {
   if (x < 0 || y < 0 || x > L.W || y > L.H) return;
   L.p0 = { x, y }; disarmLive('Ball marked · tap Arm'); $('#liveArm').disabled = false;
   setStatus('#liveStatus', 'Check the ring in the zoom box. Size it to the ball, pick the direction, then tap Arm.');
+  try { L.ctx.drawImage(cam, 0, 0, L.W, L.H); drawLiveOverlay(null); } catch (e) {}
 }
 liveWrap.addEventListener('click', liveTap);
 liveWrap.addEventListener('pointerup', liveTap);
 $('#zoomRange').addEventListener('input', async () => { const z = +$('#zoomRange').value; $('#zoomVal').textContent = z.toFixed(1); if (L.track) { try { await L.track.applyConstraints({ advanced: [{ zoom: z }] }); } catch (e) {} if (L.state !== 'setup') disarmLive('Zoom changed · tap the ball again'); } });
-$('#lrRange').addEventListener('input', () => { L.r = +$('#lrRange').value; $('#lrVal').textContent = L.r.toFixed(1); if (L.state !== 'setup') disarmLive('Ring changed · tap Arm'); });
+$('#lrRange').addEventListener('input', () => { L.r = +$('#lrRange').value; $('#lrVal').textContent = L.r.toFixed(1); if (L.state !== 'setup') disarmLive('Ring changed · tap Arm'); if (L.running && L.p0) { try { drawLiveOverlay(null); } catch (e) {} } });
 function ldirBtns() { $('#ldirL').setAttribute('aria-pressed', String(L.dir < 0)); $('#ldirR').setAttribute('aria-pressed', String(L.dir > 0)); }
 $('#ldirL').addEventListener('click', () => { L.dir = -1; ldirBtns(); });
 $('#ldirR').addEventListener('click', () => { L.dir = 1; ldirBtns(); });
@@ -1184,6 +1224,7 @@ function drawShotMap() {
 $('#btnClear').addEventListener('click', () => { if (!shots.length) return; const b = $('#btnClear'); if (b.dataset.arm === '1') { shots = []; store.set('wlm.shots', shots); renderHistory(); drawHome(); b.textContent = 'Clear session'; b.dataset.arm = ''; } else { b.dataset.arm = '1'; b.textContent = 'Tap again to clear ' + shots.length + ' shots'; setTimeout(() => { b.dataset.arm = ''; b.textContent = 'Clear session'; }, 4000); } });
 
 window.addEventListener('resize', () => { if (!$('#s-home').hidden) drawHome(); else if (!anim && current) playShot(); });
+window.__wlm = { V, L };
 renderHistory(); syncManual(); show("home");
 })();
 </script>
