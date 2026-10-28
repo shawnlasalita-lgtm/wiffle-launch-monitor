@@ -1,0 +1,1171 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0b1410">
+<style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}img{max-width:100%}[hidden]{display:none!important}</style>
+</head>
+<body>
+<title>Wiffle Launch Monitor</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&display=swap">
+<style>
+/* Layout: one-column phone app, dark launch-monitor console; scene canvases keep daylight colors in both themes. */
+:root {
+  --bg: #0b1410; --panel: #121d17; --panel2: #182820; --line: #26382e;
+  --fg: #eef4ef; --muted: #8fa497; --faint: #5f7367;
+  --accent: #ffb03b; --accent-ink: #1a1206;
+  --good: #6fd37c; --warn: #f3c550; --bad: #ff6f61;
+  --display: "Barlow Condensed", "Arial Narrow", Impact, sans-serif;
+  --body: "Barlow", "Helvetica Neue", Arial, sans-serif;
+  color-scheme: dark;
+}
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    --bg: #eef1ea; --panel: #ffffff; --panel2: #f3f6f0; --line: #d3dccf;
+    --fg: #14201a; --muted: #5d6f63; --faint: #93a398;
+    --accent: #c76f12; --accent-ink: #ffffff;
+    --good: #2f9b4a; --warn: #b4860a; --bad: #d14b3c;
+    color-scheme: light;
+  }
+}
+:root[data-theme="light"] {
+  --bg: #eef1ea; --panel: #ffffff; --panel2: #f3f6f0; --line: #d3dccf;
+  --fg: #14201a; --muted: #5d6f63; --faint: #93a398;
+  --accent: #c76f12; --accent-ink: #ffffff;
+  --good: #2f9b4a; --warn: #b4860a; --bad: #d14b3c;
+  color-scheme: light;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body { background: var(--bg); color: var(--fg); font-family: var(--body); font-size: 15px; line-height: 1.45; margin: 0; }
+.wrap { max-width: 760px; margin: 0 auto; padding-block: 10px 40px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+header.top { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 6px 0 14px; }
+header.top h1 { font-family: var(--display); font-weight: 700; font-size: 26px; letter-spacing: .02em; margin: 0; text-transform: uppercase; }
+header.top h1 span { color: var(--accent); }
+header.top .sess { font-family: var(--display); font-size: 15px; color: var(--muted); letter-spacing: .06em; text-transform: uppercase; }
+.screen { display: flex; flex-direction: column; gap: 14px; }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px; }
+.panel h2 { font-family: var(--display); font-size: 17px; letter-spacing: .08em; text-transform: uppercase; font-weight: 600; margin: 0 0 10px; color: var(--muted); }
+.eyebrow { font-family: var(--display); font-size: 13px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+p { margin: 0 0 8px; max-width: 62ch; }
+p.hint { color: var(--muted); font-size: 14px; }
+.row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.grow { flex: 1 1 140px; min-width: 0; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { font-family: var(--display); font-size: 16px; letter-spacing: .04em; padding: 7px 12px; border-radius: 6px; border: 1px solid var(--line); background: var(--panel2); color: var(--fg); cursor: pointer; }
+.chip[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.btn { font-family: var(--display); font-size: 18px; letter-spacing: .05em; text-transform: uppercase; font-weight: 600; padding: 12px 18px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel2); color: var(--fg); cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 48px; }
+.btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.btn.ghost { background: transparent; }
+.btn:disabled { opacity: .45; cursor: default; }
+.btn:focus-visible, .chip:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.btn.block { width: 100%; }
+label.field { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--muted); }
+label.field > span.val { font-family: var(--display); font-size: 20px; color: var(--fg); letter-spacing: .02em; }
+select, input[type=number] { font: inherit; background: var(--panel2); color: var(--fg); border: 1px solid var(--line); border-radius: 6px; padding: 8px 10px; min-height: 42px; }
+input[type=range] { width: 100%; accent-color: var(--accent); min-height: 32px; }
+input[type=file] { position: absolute; width: 1px; height: 1px; opacity: 0; overflow: hidden; pointer-events: none; }
+label.btn { position: relative; overflow: hidden; }
+.scene { width: 100%; aspect-ratio: 16 / 9; max-width: 100%; border-radius: 10px; display: block; background: #0d2d1a; }
+.frameWrap { position: relative; width: 100%; background: #000; border-radius: 10px; overflow: hidden; touch-action: manipulation; }
+.frameWrap canvas, .frameWrap video { width: 100%; display: block; max-width: 100%; }
+#liveWrap { aspect-ratio: 16 / 9; }
+#liveWrap video { height: 100%; object-fit: contain; background: #000; }
+#liveWrap.armed { outline: 3px solid var(--good); }
+#liveWrap.tracking { outline: 3px solid var(--accent); }
+.frameWrap .overlayNote { position: absolute; left: 10px; top: 8px; font-family: var(--display); font-size: 14px; letter-spacing: .08em; text-transform: uppercase; color: #fff; text-shadow: 0 1px 3px #000; pointer-events: none; }
+.magWrap { display: flex; gap: 12px; align-items: center; }
+.mag { width: 112px; height: 112px; border-radius: 10px; border: 1px solid var(--line); background: #000; flex: 0 0 auto; }
+.tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.tile { background: var(--panel2); border: 1px solid var(--line); border-radius: 8px; padding: 10px 10px 8px; min-width: 0; }
+.tile .k { font-family: var(--display); font-size: 12px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tile .v { font-family: var(--display); font-weight: 700; font-size: 32px; line-height: 1.05; font-variant-numeric: tabular-nums; margin-top: 2px; }
+.tile .v small { font-size: 15px; font-weight: 600; color: var(--muted); margin-left: 3px; letter-spacing: .02em; }
+.tile.pending .v { color: var(--faint); }
+.tile.hot .v { color: var(--accent); }
+.result { font-family: var(--display); font-size: 24px; font-weight: 600; letter-spacing: .02em; }
+.result.good { color: var(--good); } .result.warn { color: var(--warn); } .result.bad { color: var(--bad); }
+.conf { display: inline-block; font-family: var(--display); font-size: 13px; letter-spacing: .08em; text-transform: uppercase; padding: 3px 8px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); }
+.conf.good { color: var(--good); border-color: var(--good); } .conf.warn { color: var(--warn); border-color: var(--warn); } .conf.bad { color: var(--bad); border-color: var(--bad); }
+.tabs { display: flex; gap: 6px; flex-wrap: wrap; }
+.tab { font-family: var(--display); font-size: 15px; letter-spacing: .05em; padding: 7px 10px; border-radius: 6px; border: 1px solid var(--line); background: var(--panel2); color: var(--fg); cursor: pointer; }
+.tab[aria-selected="true"] { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.tab.off { text-decoration: line-through; color: var(--muted); }
+table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; font-size: 14px; }
+th, td { text-align: right; padding: 6px 6px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+th { font-family: var(--display); font-weight: 600; letter-spacing: .08em; text-transform: uppercase; font-size: 12px; color: var(--muted); }
+th:first-child, td:first-child { text-align: left; }
+.tableWrap { overflow-x: auto; }
+.steps { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 10px; }
+.step { background: var(--panel2); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; font-size: 14px; }
+.step b { font-family: var(--display); font-size: 16px; letter-spacing: .05em; text-transform: uppercase; display: block; margin-bottom: 4px; color: var(--accent); }
+.setupArt { width: 100%; max-width: 100%; height: auto; display: block; border-radius: 8px; }
+.status { font-size: 14px; color: var(--muted); min-height: 1.4em; }
+.status.err { color: var(--bad); }
+progress { width: 100%; accent-color: var(--accent); height: 8px; }
+.mapRow { display: grid; grid-template-columns: minmax(0, 1fr) 150px; gap: 12px; align-items: start; }
+@media (max-width: 560px) { .mapRow { grid-template-columns: 1fr; } .tiles { grid-template-columns: repeat(3, minmax(0, 1fr)); } .tile .v { font-size: 26px; } }
+.shotmap { width: 150px; height: 300px; border-radius: 8px; border: 1px solid var(--line); background: #1f5a2c; display: block; }
+@media (max-width: 560px) { .shotmap { width: 100%; height: 220px; } }
+.foot { color: var(--faint); font-size: 13px; }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+<div class="wrap">
+<header class="top">
+  <h1>Wiffle <span>Launch Monitor</span></h1>
+  <div class="sess" id="sessCount">0 shots</div>
+</header>
+
+<!-- HOME -->
+<section class="screen" id="s-home">
+  <div class="panel" style="padding:8px">
+    <canvas class="scene" id="homeScene" aria-label="View down the hole from the tee"></canvas>
+  </div>
+  <div class="panel">
+    <h2>Shot setup</h2>
+    <div class="eyebrow" style="margin-bottom:6px">Club (sets spin)</div>
+    <div class="chips" id="clubChips" role="group" aria-label="Club"></div>
+    <div class="row" style="margin-top:12px">
+      <label class="field grow">Pin distance <span class="val"><span id="pinVal">150</span> yds</span>
+        <input type="range" id="pinRange" min="60" max="280" step="5" value="150"></label>
+      <label class="field grow">Ball you are hitting
+        <select id="ballSel">
+          <option value="wiffle">Plastic wiffle ball</option>
+          <option value="foam">Foam practice ball</option>
+          <option value="real">Real golf ball</option>
+        </select></label>
+    </div>
+    <div class="row" style="margin-top:10px">
+      <label class="field grow">Handedness
+        <select id="handSel"><option value="R">Right-handed</option><option value="L">Left-handed</option></select></label>
+      <label class="field grow">Video was recorded as
+        <select id="slowSel">
+          <option value="1">Normal speed (30 or 60 fps)</option>
+          <option value="4">Slo-mo, 120 fps</option>
+          <option value="8">Slo-mo, 240 fps</option>
+        </select></label>
+      <label class="field grow">Speed calibration <span class="val"><span id="facVal">1.05</span>×</span>
+        <input type="range" id="facRange" min="0.7" max="1.6" step="0.01" value="1.05"></label>
+    </div>
+    <p class="hint" style="margin-top:8px">The app measures the wiffle ball's speed and launch angle in the first frames after impact, then flies a real golf ball with those numbers. If your real-ball carry is known, nudge the calibration until the sim matches.</p>
+  </div>
+  <div class="panel">
+    <h2>Hit a shot</h2>
+    <div class="row">
+      <button class="btn primary grow" id="btnLive">● Live camera</button>
+      <label class="btn grow" for="fileRec">Record a clip<input type="file" id="fileRec" accept="video/*" capture="environment"></label>
+      <label class="btn grow" for="fileFront">Record a clip (front camera)<input type="file" id="fileFront" accept="video/*" capture="user"></label>
+      <label class="btn grow" for="filePick">Choose a video<input type="file" id="filePick" accept="video/*"></label>
+      <button class="btn ghost grow" id="btnManual">Type numbers in</button>
+    </div>
+    <p class="hint" style="margin-top:8px">Live camera watches the ball and fires on its own: tap the ball once, arm it, hit, read the result, drop the next ball on the same spot and it re-arms. Live mode needs this page open in Chrome or Safari over https. The clip buttons work from a video you recorded in your camera app.</p>
+    <div class="steps" style="margin-top:12px">
+      <div class="step"><b>1 · Camera</b>Phone on the ground or a low tripod, 6 to 10 feet in front of you, facing you. Landscape.</div>
+      <div class="step"><b>2 · Ball placement</b>Ball near the edge of the frame on the side away from the target, so it flies across the whole screen.</div>
+      <div class="step"><b>3 · Frame rate</b>60 fps or slo-mo if your phone offers it. Stop recording a second after impact.</div>
+    </div>
+    <svg class="setupArt" viewBox="0 0 640 170" role="img" aria-label="Setup diagram: phone on the ground facing the golfer, ball on the far side of the frame from the target" style="margin-top:12px">
+      <rect x="0" y="0" width="640" height="170" fill="#183a26"/>
+      <rect x="0" y="120" width="640" height="50" fill="#2d6b3b"/>
+      <text x="610" y="150" font-family="Barlow Condensed, Arial Narrow, sans-serif" font-size="14" fill="#cfe6d2" text-anchor="end">target →</text>
+      <rect x="20" y="22" width="420" height="98" fill="none" stroke="#ffb03b" stroke-width="2" stroke-dasharray="6 5"/>
+      <text x="26" y="40" font-family="Barlow Condensed, Arial Narrow, sans-serif" font-size="14" fill="#ffb03b">what the phone sees</text>
+      <circle cx="70" cy="114" r="6" fill="#ffffff"/>
+      <g stroke="#e9f0e9" stroke-width="4" fill="none" stroke-linecap="round">
+        <circle cx="105" cy="52" r="10" fill="#e9f0e9" stroke="none"/>
+        <path d="M105 62 L105 95 M105 70 L85 104 M105 70 L125 100 M105 95 L92 120 M105 95 L118 120"/>
+        <path d="M85 104 L72 112" stroke="#9fb3a3"/>
+      </g>
+      <path d="M70 108 Q200 10 420 40" fill="none" stroke="#ffb03b" stroke-width="2"/>
+      <circle cx="420" cy="40" r="4" fill="#ffb03b"/>
+      <rect x="560" y="98" width="14" height="26" rx="2" fill="#111" stroke="#9fb3a3"/>
+      <circle cx="567" cy="104" r="2" fill="#9fb3a3"/>
+      <text x="567" y="140" font-family="Barlow Condensed, Arial Narrow, sans-serif" font-size="13" fill="#cfe6d2" text-anchor="middle">phone, 6–10 ft</text>
+    </svg>
+  </div>
+  <div class="panel">
+    <h2>Session</h2>
+    <div class="mapRow">
+      <div class="tableWrap" id="histWrap"><p class="hint">No shots yet. Your shots will be listed here with carry, total and where they finished.</p></div>
+      <canvas class="shotmap" id="shotMap" aria-label="Top-down map of where each shot finished"></canvas>
+    </div>
+    <div class="row" style="margin-top:10px"><button class="btn ghost" id="btnClear">Clear session</button></div>
+  </div>
+  <p class="foot">Ball flight uses a drag and Magnus lift model tuned to tour launch data. Launch direction is not measured from a face-on video, so every shot is flown on the target line.</p>
+</section>
+
+<!-- MARK THE BALL -->
+<section class="screen" id="s-mark" hidden>
+  <div class="panel">
+    <h2>1 · Find the ball before impact</h2>
+    <p>Scrub to a frame where your swing has started but the ball is still sitting there. Then tap the ball and size the ring to match it.</p>
+    <div class="frameWrap"><canvas id="mkCanvas"></canvas><div class="overlayNote" id="mkNote">Tap the ball</div></div>
+    <input type="range" id="scrub" min="0" max="1" step="0.001" value="0" aria-label="Video position" style="margin-top:8px">
+    <div class="row">
+      <button class="btn ghost" id="scrubBack" aria-label="One frame back">‹ frame</button>
+      <div class="status grow" id="mkTime">0.00 s</div>
+      <button class="btn ghost" id="scrubFwd" aria-label="One frame forward">frame ›</button>
+    </div>
+    <div class="magWrap" style="margin-top:8px">
+      <canvas class="mag" id="mkMag" width="224" height="224" aria-label="Zoomed view of the ball ring"></canvas>
+      <div class="grow">
+        <label class="field">Ring size <span class="val"><span id="rVal">14</span> px</span>
+          <input type="range" id="rRange" min="3" max="90" step="0.5" value="14"></label>
+        <div class="eyebrow" style="margin-top:8px">Ball flies toward the</div>
+        <div class="chips" role="group" aria-label="Target direction">
+          <button class="chip" id="dirL" aria-pressed="false">← Left of frame</button>
+          <button class="chip" id="dirR" aria-pressed="true">Right of frame →</button>
+        </div>
+      </div>
+    </div>
+    <div class="status" id="mkStatus" style="margin-top:8px"></div>
+    <progress id="mkProg" max="100" value="0" hidden></progress>
+    <div class="row" style="margin-top:10px">
+      <button class="btn ghost" id="mkBack">Back</button>
+      <button class="btn primary grow" id="mkAnalyze" disabled>Track the ball</button>
+    </div>
+  </div>
+</section>
+
+<!-- REVIEW TRACKING -->
+<section class="screen" id="s-review" hidden>
+  <div class="panel">
+    <h2>2 · Check the tracking</h2>
+    <p>The ring shows where the app found the ball in each frame after launch. Tap the ball to fix a frame, or mark it hidden if the ball is out of view or blurred into the club.</p>
+    <div class="tabs" id="rvTabs"></div>
+    <div class="frameWrap" style="margin-top:8px"><canvas id="rvCanvas"></canvas><div class="overlayNote" id="rvNote"></div></div>
+    <div class="magWrap" style="margin-top:8px">
+      <canvas class="mag" id="rvMag" width="224" height="224" aria-label="Zoomed view of the marked ball"></canvas>
+      <div class="grow">
+        <div class="status" id="rvInfo"></div>
+        <div class="row" style="margin-top:8px"><button class="btn ghost" id="rvHide">Ball not visible here</button></div>
+      </div>
+    </div>
+    <div class="status" id="rvStatus" style="margin-top:8px"></div>
+    <div class="row" style="margin-top:10px">
+      <button class="btn ghost" id="rvBack">Back</button>
+      <button class="btn primary grow" id="rvCompute">Fly the shot</button>
+    </div>
+  </div>
+</section>
+
+
+<!-- LIVE CAMERA -->
+<section class="screen" id="s-live" hidden>
+  <div class="panel">
+    <h2>Live camera</h2>
+    <div class="frameWrap" id="liveWrap"><video id="cam" playsinline muted autoplay></video><canvas id="liveOv" style="position:absolute;left:0;top:0;width:100%;height:100%"></canvas><div class="overlayNote" id="liveNote">Starting camera…</div></div>
+    <div class="status" id="liveStatus" style="margin-top:8px"></div>
+    <div class="magWrap" style="margin-top:8px">
+      <canvas class="mag" id="liveMag" width="224" height="224" aria-label="Zoomed view of the ball ring"></canvas>
+      <div class="grow">
+        <label class="field">Ring size <span class="val"><span id="lrVal">10</span> px</span>
+          <input type="range" id="lrRange" min="2" max="60" step="0.5" value="10"></label>
+        <div class="eyebrow" style="margin-top:8px">Ball flies toward the</div>
+        <div class="chips" role="group" aria-label="Target direction">
+          <button class="chip" id="ldirL" aria-pressed="false">← Left</button>
+          <button class="chip" id="ldirR" aria-pressed="true">Right →</button>
+        </div>
+      </div>
+    </div>
+    <div class="row" style="margin-top:10px">
+      <button class="btn ghost" id="liveBack">Done</button>
+      <button class="btn ghost" id="liveFlip">Flip camera</button>
+      <button class="btn primary grow" id="liveArm" disabled>Arm</button>
+    </div>
+  </div>
+  <div id="liveResult" hidden class="screen">
+    <div class="panel" style="padding:8px">
+      <canvas class="scene" id="liveScene" aria-label="Ball flight down the hole"></canvas>
+      <div class="row" style="padding:8px 6px 2px; justify-content:space-between">
+        <div class="result" id="liveShotResult">&nbsp;</div>
+        <span class="conf" id="liveShotConf"></span>
+      </div>
+    </div>
+    <div class="tiles" id="liveTiles"></div>
+    <div class="panel">
+      <div class="status" id="liveMeasureNote"></div>
+      <div class="row" style="margin-top:10px">
+        <button class="btn ghost" id="liveReplay">Replay</button>
+        <button class="btn ghost" id="liveRetrack">Fix tracking</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- MANUAL -->
+<section class="screen" id="s-manual" hidden>
+  <div class="panel">
+    <h2>Type the launch numbers</h2>
+    <p class="hint">Handy for testing the hole, or if a video did not track. Spin comes from the club chosen on the home screen.</p>
+    <div class="row">
+      <label class="field grow">Ball speed <span class="val"><span id="mSpeedVal">110</span> mph</span>
+        <input type="range" id="mSpeed" min="40" max="190" step="1" value="110"></label>
+      <label class="field grow">Launch angle <span class="val"><span id="mLaunchVal">16</span>°</span>
+        <input type="range" id="mLaunch" min="3" max="45" step="0.5" value="16"></label>
+      <label class="field grow">Direction <span class="val"><span id="mDirVal">0</span>°</span>
+        <input type="range" id="mDir" min="-15" max="15" step="0.5" value="0"></label>
+    </div>
+    <div class="row" style="margin-top:10px">
+      <button class="btn ghost" id="mBack">Back</button>
+      <button class="btn primary grow" id="mHit">Fly the shot</button>
+    </div>
+  </div>
+</section>
+
+<!-- SHOT -->
+<section class="screen" id="s-shot" hidden>
+  <div class="panel" style="padding:8px">
+    <canvas class="scene" id="shotScene" aria-label="Ball flight down the hole"></canvas>
+    <div class="row" style="padding:8px 6px 2px; justify-content:space-between">
+      <div class="result" id="shotResult">&nbsp;</div>
+      <span class="conf" id="shotConf"></span>
+    </div>
+  </div>
+  <div class="tiles" id="tiles"></div>
+  <div class="panel">
+    <div class="status" id="measureNote"></div>
+    <div class="row" style="margin-top:10px">
+      <button class="btn ghost" id="shotReplay">Replay</button>
+      <button class="btn ghost" id="shotRetrack" hidden>Fix tracking</button>
+      <button class="btn primary grow" id="shotNext">Next shot</button>
+    </div>
+  </div>
+</section>
+
+<video id="vid" playsinline muted preload="auto" style="position:fixed;width:1px;height:1px;opacity:0;pointer-events:none;left:-10px;top:-10px"></video>
+</div>
+<script>
+(() => {
+'use strict';
+const $ = (s, el = document) => el.querySelector(s);
+const $$ = (s, el = document) => [...el.querySelectorAll(s)];
+const store = {
+  get(k, d) { try { const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } },
+  set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} },
+};
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const YD = 0.9144, MPH = 0.44704, G = 9.81;
+const BALL_D = 0.04267; // metres, same for a real ball and a plastic practice ball
+
+const CLUBS = {
+  Dr: { name: 'Driver', spin: 2700, launch: 12, speed: 140 },
+  '3w': { name: '3 Wood', spin: 3600, launch: 10.5, speed: 132 },
+  '5i': { name: '5 Iron', spin: 5300, launch: 13, speed: 120 },
+  '7i': { name: '7 Iron', spin: 7000, launch: 16.5, speed: 110 },
+  '9i': { name: '9 Iron', spin: 8500, launch: 20.5, speed: 100 },
+  PW: { name: 'Pitching Wedge', spin: 9300, launch: 24, speed: 94 },
+  SW: { name: 'Sand Wedge', spin: 10000, launch: 30, speed: 82 },
+};
+const BALLS = {
+  wiffle: { name: 'Plastic wiffle ball', mass: 0.0095, cd: 0.55, factor: 1.05 },
+  foam: { name: 'Foam practice ball', mass: 0.013, cd: 0.50, factor: 1.10 },
+  real: { name: 'Real golf ball', mass: 0.0459, cd: 0.25, factor: 1.0 },
+};
+
+const settings = Object.assign({ club: '7i', pin: 150, ball: 'wiffle', hand: 'R', slow: 1, factor: 1.05 }, store.get('wlm.settings', {}));
+let shots = store.get('wlm.shots', []);
+if (!Array.isArray(shots)) shots = [];
+const saveSettings = () => store.set('wlm.settings', settings);
+
+// ---------- FLIGHT PHYSICS ----------
+// ---- FLIGHT PHYSICS (shared with page) ----
+const PHYS = (() => {
+  const MPH = 0.44704, YD = 0.9144, G = 9.81;
+  const M = 0.04593, R = 0.02135, A = Math.PI * R * R, RHO = 1.225;
+  const SURF = {
+    green:   { keep: 0.42, decel: 1.1 },
+    fringe:  { keep: 0.45, decel: 1.6 },
+    fairway: { keep: 0.52, decel: 2.0 },
+    rough:   { keep: 0.18, decel: 5.0 },
+    bunker:  { keep: 0.05, decel: 9.0 },
+    tee:     { keep: 0.52, decel: 2.0 },
+  };
+  function fly(speedMph, launchDeg, dirDeg, spinRpm) {
+    const la = launchDeg * Math.PI / 180, da = dirDeg * Math.PI / 180;
+    const v0 = speedMph * MPH;
+    let vx = v0 * Math.cos(la) * Math.sin(da), vy = v0 * Math.sin(la), vz = v0 * Math.cos(la) * Math.cos(da);
+    let x = 0, y = 0, z = 0, t = 0, w = spinRpm * 2 * Math.PI / 60;
+    // spin axis: horizontal, perpendicular to launch line (pure backspin)
+    const ax0 = -Math.cos(da), az0 = Math.sin(da);
+    const path = [{ t, x, y, z }];
+    const dt = 0.004; let apex = 0, lastT = 0;
+    for (let i = 0; i < 20000; i++) {
+      const sp = Math.hypot(vx, vy, vz);
+      const S = w * R / sp;
+      const Cd = 0.215 + 0.265 * S, Cl = 0.375 * S / (S + 0.095);
+      const q = 0.5 * RHO * A * sp * sp;
+      // drag
+      let fx = -q * Cd * vx / sp, fy = -q * Cd * vy / sp, fz = -q * Cd * vz / sp;
+      // lift: along (axis x v) normalized
+      let lx = 0 * vz - az0 * vy, ly = az0 * vx - ax0 * vz, lz = ax0 * vy - 0 * vx;
+      const ln = Math.hypot(lx, ly, lz) || 1;
+      fx += q * Cl * lx / ln; fy += q * Cl * ly / ln; fz += q * Cl * lz / ln;
+      vx += fx / M * dt; vy += (fy / M - G) * dt; vz += fz / M * dt;
+      x += vx * dt; y += vy * dt; z += vz * dt; t += dt;
+      w *= Math.exp(-dt / 25);
+      if (y > apex) apex = y;
+      if (t - lastT >= 0.03) { path.push({ t, x, y, z }); lastT = t; }
+      if (y < 0 && vy < 0) break;
+    }
+    path.push({ t, x, y: 0, z });
+    const vh = Math.hypot(vx, vz);
+    return {
+      path, hang: t, apexFt: apex / 0.3048,
+      carryYd: Math.hypot(x, z) / YD, sideYd: x / YD, zYd: z / YD,
+      landAngleDeg: Math.atan2(-vy, vh) * 180 / Math.PI,
+      landVx: vx, landVz: vz, landVy: vy, landSpin: w * 60 / (2 * Math.PI),
+    };
+  }
+  // roll after landing; surfaceAt(xYd,zYd) -> surface key
+  function roll(f, surfaceAt) {
+    let x = f.sideYd * YD, z = f.zYd * YD;
+    const s0 = surfaceAt(x / YD, z / YD);
+    const sf = SURF[s0] || SURF.rough;
+    // steep landings and high spin kill roll
+    const steep = Math.max(0, Math.min(1, (f.landAngleDeg - 25) / 40));
+    let keep = sf.keep * (1 - 0.6 * steep) * Math.max(0.15, 1 - f.landSpin / 16000);
+    let vx = f.landVx * keep, vz = f.landVz * keep;
+    const pts = [{ t: 0, x, z }];
+    let t = 0; const dt = 0.03;
+    while (Math.hypot(vx, vz) > 0.05 && t < 15) {
+      const s = SURF[surfaceAt(x / YD, z / YD)] || SURF.rough;
+      const sp = Math.hypot(vx, vz), dec = Math.min(sp / dt, s.decel);
+      vx -= dec * dt * vx / sp; vz -= dec * dt * vz / sp;
+      x += vx * dt; z += vz * dt; t += dt;
+      pts.push({ t, x, z });
+    }
+    return { pts, totalYd: Math.hypot(x, z) / YD, endX: x / YD, endZ: z / YD, rollT: t, surface: surfaceAt(x / YD, z / YD) };
+  }
+  return { fly, roll, SURF, MPH, YD };
+})();
+
+
+// ---------- HOLE / COURSE ----------
+function courseFor(pin) {
+  return {
+    pin,
+    fairwayHalf: 17, fairwayEnd: pin + 35,
+    green: { x: 0, z: pin, rx: 15, rz: 12 },
+    fringe: { x: 0, z: pin, rx: 18.5, rz: 15.5 },
+    bunkers: [{ x: 24, z: pin - 8, rx: 6, rz: 4 }, { x: -21, z: pin + 7, rx: 5, rz: 3.5 }],
+    trees: (() => {
+      const t = []; let seed = 7;
+      const rnd = () => { seed = (seed * 9301 + 49297) % 233280; return seed / 233280; };
+      for (let z = 15; z < pin + 90; z += 22) {
+        t.push({ x: 38 + rnd() * 22, z: z + rnd() * 8, r: 4 + rnd() * 3.5, h: 7 + rnd() * 4 });
+        t.push({ x: -(38 + rnd() * 22), z: z + 10 + rnd() * 8, r: 4 + rnd() * 3.5, h: 7 + rnd() * 4 });
+      }
+      return t;
+    })(),
+  };
+}
+function inEllipse(x, z, e) { const dx = (x - e.x) / e.rx, dz = (z - e.z) / e.rz; return dx * dx + dz * dz <= 1; }
+function surfaceAt(c, x, z) {
+  if (inEllipse(x, z, c.green)) return 'green';
+  for (const b of c.bunkers) if (inEllipse(x, z, b)) return 'bunker';
+  if (inEllipse(x, z, c.fringe)) return 'fringe';
+  if (Math.abs(x) <= c.fairwayHalf && z >= -3 && z <= c.fairwayEnd) return 'fairway';
+  return 'rough';
+}
+
+// ---------- 3D SCENE RENDERER ----------
+const SKY_TOP = '#5e9fd8', SKY_HZ = '#cfe3f0';
+const COL = { rough: '#2f6b31', fairway: '#4f9a3f', stripe: '#58a847', fringe: '#5fae4a', green: '#6fbf52', bunker: '#e4d3a3', tree: '#1f4d26', trunk: '#4a3522' };
+function makeCam(pos, look, W, H, fov = 52) {
+  const f = norm(sub(look, pos)); const r = norm(cross({ x: 0, y: 1, z: 0 }, f)); const u = cross(f, r);
+  return { pos, f, r, u, W, H, focal: (H / 2) / Math.tan(fov / 2 * Math.PI / 180) };
+}
+const sub = (a, b) => ({ x: a.x - b.x, y: a.y - b.y, z: a.z - b.z });
+const dot = (a, b) => a.x * b.x + a.y * b.y + a.z * b.z;
+const cross = (a, b) => ({ x: a.y * b.z - a.z * b.y, y: a.z * b.x - a.x * b.z, z: a.x * b.y - a.y * b.x });
+const norm = a => { const l = Math.hypot(a.x, a.y, a.z) || 1; return { x: a.x / l, y: a.y / l, z: a.z / l }; };
+function toCam(cam, p) { const d = sub(p, cam.pos); return { x: dot(d, cam.r), y: dot(d, cam.u), z: dot(d, cam.f) }; }
+function proj(cam, c) { return { x: cam.W / 2 + cam.focal * c.x / c.z, y: cam.H / 2 - cam.focal * c.y / c.z }; }
+function projPoint(cam, p) { const c = toCam(cam, p); return c.z <= 0.05 ? null : Object.assign(proj(cam, c), { zc: c.z }); }
+const NEAR = 0.25;
+function clipPoly(pts) {
+  const out = [];
+  for (let i = 0; i < pts.length; i++) {
+    const a = pts[i], b = pts[(i + 1) % pts.length];
+    const ain = a.z > NEAR, bin = b.z > NEAR;
+    if (ain) out.push(a);
+    if (ain !== bin) { const t = (NEAR - a.z) / (b.z - a.z); out.push({ x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t, z: NEAR }); }
+  }
+  return out;
+}
+function fillPoly(ctx, cam, pts3, color) {
+  const cp = clipPoly(pts3.map(p => toCam(cam, p)));
+  if (cp.length < 3) return;
+  ctx.beginPath();
+  cp.forEach((c, i) => { const s = proj(cam, c); if (i) ctx.lineTo(s.x, s.y); else ctx.moveTo(s.x, s.y); });
+  ctx.closePath(); ctx.fillStyle = color; ctx.fill();
+}
+function ellipsePts(e, n = 44) { const a = []; for (let i = 0; i < n; i++) { const t = i / n * 2 * Math.PI; a.push({ x: e.x + e.rx * Math.cos(t), y: 0, z: e.z + e.rz * Math.sin(t) }); } return a; }
+function fog(hex, d) { // blend toward horizon colour with distance
+  const k = clamp(d / 900, 0, 0.55);
+  const c = parseInt(hex.slice(1), 16), h = parseInt(SKY_HZ.slice(1), 16);
+  const mix = (a, b) => Math.round(a + (b - a) * k);
+  const r = mix(c >> 16, h >> 16), g = mix((c >> 8) & 255, (h >> 8) & 255), b = mix(c & 255, h & 255);
+  return `rgb(${r},${g},${b})`;
+}
+function drawScene(ctx, cam, course, opts) {
+  const { W, H } = cam;
+  const hz = projPoint(cam, { x: cam.pos.x + cam.f.x * 1e5, y: 0, z: cam.pos.z + cam.f.z * 1e5 });
+  const hy = hz ? clamp(hz.y, 0, H) : H * 0.4;
+  const sky = ctx.createLinearGradient(0, 0, 0, hy); sky.addColorStop(0, SKY_TOP); sky.addColorStop(1, SKY_HZ);
+  ctx.fillStyle = sky; ctx.fillRect(0, 0, W, hy + 1);
+  const ground = ctx.createLinearGradient(0, hy, 0, H); ground.addColorStop(0, fog(COL.rough, 900)); ground.addColorStop(0.25, COL.rough); ground.addColorStop(1, COL.rough);
+  ctx.fillStyle = ground; ctx.fillRect(0, hy, W, H - hy);
+  const fh = course.fairwayHalf, fe = course.fairwayEnd;
+  fillPoly(ctx, cam, [{ x: -fh, y: 0, z: -3 }, { x: fh, y: 0, z: -3 }, { x: fh, y: 0, z: fe }, { x: -fh, y: 0, z: fe }], COL.fairway);
+  for (let x = -fh; x < fh; x += 8.5) fillPoly(ctx, cam, [{ x, y: 0, z: -3 }, { x: Math.min(fh, x + 4.25), y: 0, z: -3 }, { x: Math.min(fh, x + 4.25), y: 0, z: fe }, { x, y: 0, z: fe }], COL.stripe);
+  fillPoly(ctx, cam, ellipsePts(course.fringe), COL.fringe);
+  fillPoly(ctx, cam, ellipsePts(course.green), COL.green);
+  for (const b of course.bunkers) fillPoly(ctx, cam, ellipsePts(b, 28), COL.bunker);
+  for (const z of [100, 150, 200, 250]) if (z < fe) fillPoly(ctx, cam, ellipsePts({ x: -fh - 1.5, z, rx: 0.5, rz: 0.5 }, 12), '#ffffff');
+  // tee markers
+  for (const x of [-1.4, 1.4]) { const p = projPoint(cam, { x, y: 0.1, z: -0.5 }); if (p) { ctx.fillStyle = '#e8e8e8'; ctx.beginPath(); ctx.arc(p.x, p.y, Math.max(1.5, cam.focal * 0.12 / p.zc), 0, 7); ctx.fill(); } }
+  // trees, far to near
+  const trees = course.trees.map(t => ({ t, c: toCam(cam, { x: t.x, y: 0, z: t.z }) })).filter(o => o.c.z > NEAR).sort((a, b) => b.c.z - a.c.z);
+  for (const { t, c } of trees) {
+    const base = proj(cam, c), top = proj(cam, toCam(cam, { x: t.x, y: t.h, z: t.z }));
+    const rr = cam.focal * t.r / c.z; if (rr < 0.6) continue;
+    ctx.strokeStyle = fog(COL.trunk, c.z); ctx.lineWidth = Math.max(1, rr * 0.18);
+    ctx.beginPath(); ctx.moveTo(base.x, base.y); ctx.lineTo(top.x, top.y); ctx.stroke();
+    ctx.fillStyle = fog(COL.tree, c.z); ctx.beginPath(); ctx.arc(top.x, top.y - rr * 0.3, rr, 0, 7); ctx.fill();
+  }
+  // flagstick
+  const pb = projPoint(cam, { x: course.green.x, y: 0, z: course.green.z }), pt = projPoint(cam, { x: course.green.x, y: 2.4, z: course.green.z });
+  if (pb && pt) {
+    ctx.strokeStyle = '#f4f4f4'; ctx.lineWidth = Math.max(1, cam.focal * 0.03 / pb.zc); ctx.beginPath(); ctx.moveTo(pb.x, pb.y); ctx.lineTo(pt.x, pt.y); ctx.stroke();
+    const fw = Math.max(4, cam.focal * 0.9 / pb.zc), fhh = Math.max(3, cam.focal * 0.55 / pb.zc);
+    ctx.fillStyle = '#ffb03b'; ctx.beginPath(); ctx.moveTo(pt.x, pt.y); ctx.lineTo(pt.x + fw, pt.y + fhh * 0.5); ctx.lineTo(pt.x, pt.y + fhh); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = 'rgba(0,0,0,.35)'; ctx.beginPath(); ctx.ellipse(pb.x, pb.y, Math.max(2, cam.focal * 0.12 / pb.zc), Math.max(1, cam.focal * 0.06 / pb.zc), 0, 0, 7); ctx.fill();
+  }
+  // trail
+  if (opts && opts.trail && opts.trail.length > 1) {
+    ctx.lineWidth = 2; ctx.strokeStyle = 'rgba(255,176,59,.9)'; ctx.lineJoin = 'round'; ctx.beginPath(); let started = false;
+    for (const p of opts.trail) { const s = projPoint(cam, p); if (!s) { started = false; continue; } if (started) ctx.lineTo(s.x, s.y); else { ctx.moveTo(s.x, s.y); started = true; } }
+    ctx.stroke();
+  }
+  // ghost balls (previous shots)
+  if (opts && opts.ghosts) for (const g of opts.ghosts) { const s = projPoint(cam, { x: g.x, y: 0.02, z: g.z }); if (s) { ctx.fillStyle = 'rgba(255,255,255,.7)'; ctx.beginPath(); ctx.arc(s.x, s.y, clamp(cam.focal * 0.25 / s.zc, 1.5, 5), 0, 7); ctx.fill(); } }
+  // ball + shadow
+  if (opts && opts.ball) {
+    const b = opts.ball, sh = projPoint(cam, { x: b.x, y: 0, z: b.z }), bp = projPoint(cam, b);
+    if (sh) { ctx.fillStyle = 'rgba(0,0,0,.35)'; ctx.beginPath(); ctx.ellipse(sh.x, sh.y, clamp(cam.focal * 0.5 / sh.zc, 2, 10), clamp(cam.focal * 0.22 / sh.zc, 1, 5), 0, 0, 7); ctx.fill(); }
+    if (bp) { const rr = clamp(cam.focal * 0.42 / bp.zc, 2.5, 13); ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.arc(bp.x, bp.y, rr, 0, 7); ctx.fill(); ctx.strokeStyle = 'rgba(0,0,0,.25)'; ctx.lineWidth = 1; ctx.stroke(); }
+  }
+}
+function fitCanvas(cv) {
+  const dpr = Math.min(2, window.devicePixelRatio || 1);
+  const w = cv.clientWidth || 640, h = Math.round(w * 9 / 16);
+  if (cv.width !== Math.round(w * dpr) || cv.height !== Math.round(h * dpr)) { cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr); }
+  const ctx = cv.getContext('2d'); ctx.setTransform(dpr, 0, 0, dpr, 0, 0); return { ctx, W: w, H: h };
+}
+function teeCam(W, H, course) { return makeCam({ x: 0, y: 2.6, z: -6 }, { x: 0, y: 7 + course.pin * 0.03, z: Math.min(course.pin, 110) }, W, H, 52); }
+function landCam(W, H, course, end) {
+  const dz = end.z - course.pin, dx = end.x - course.green.x;
+  const d = Math.max(12, Math.hypot(dx, dz));
+  const back = norm({ x: dx, y: 0, z: dz }); // from pin toward ball
+  const pos = { x: end.x + back.x * Math.max(14, d * 0.6) + 6, y: 4 + d * 0.08, z: end.z + back.z * Math.max(14, d * 0.6) };
+  if (Math.abs(back.z) < 0.3 && Math.abs(back.x) < 0.3) pos.z = end.z - 18;
+  return makeCam(pos, { x: (end.x + course.green.x) / 2, y: 0.3, z: (end.z + course.pin) / 2 }, W, H, 48);
+}
+// ---------- SCREENS ----------
+const screens = ['home', 'mark', 'review', 'manual', 'shot', 'live'];
+function show(name) { for (const s of screens) $('#s-' + s).hidden = s !== name; window.scrollTo(0, 0); if (name === 'home') drawHome(); }
+
+// ---------- VIDEO ----------
+const vid = $('#vid');
+const V = { url: null, w: 0, h: 0, dur: 0, fps: 30, tSel: 0, p0: null, r: 14, dir: 1, cap: null, impact: -1, marks: [], noise: 0, ref: null, slow: 1, live: false };
+function seekTo(t) {
+  return new Promise(res => {
+    t = clamp(t, 0, Math.max(0, vid.duration - 0.001));
+    if (Math.abs(vid.currentTime - t) < 1e-4 && vid.readyState >= 2) { res(); return; }
+    let done = false; const fin = () => { if (done) return; done = true; vid.removeEventListener('seeked', fin); res(); };
+    vid.addEventListener('seeked', fin); setTimeout(fin, 1500); vid.currentTime = t;
+  });
+}
+async function loadVideo(file) {
+  if (V.url) URL.revokeObjectURL(V.url);
+  V.url = URL.createObjectURL(file); vid.src = V.url; vid.load();
+  await new Promise((res, rej) => { const ok = () => { vid.removeEventListener('loadeddata', ok); res(); }; vid.addEventListener('loadeddata', ok); vid.addEventListener('error', () => rej(new Error('This video could not be opened. Try a different file or re-export it as MP4.')), { once: true }); setTimeout(() => rej(new Error('The video took too long to load. Try a shorter clip.')), 20000); });
+  try { await vid.play(); vid.pause(); } catch (e) {} // unlock frame drawing on iOS
+  V.w = vid.videoWidth; V.h = vid.videoHeight; V.dur = vid.duration;
+  if (!V.w || !V.h) throw new Error('Could not read the video size. Try re-saving the clip as MP4.');
+  V.p0 = null; V.cap = null; V.marks = []; V.impact = -1;
+  V.tSel = Math.max(0, Math.min(V.dur - 0.05, V.dur * 0.5));
+  V.r = clamp(V.w / 110, 5, 40);
+  V.dir = settings.hand === 'L' ? -1 : 1;
+}
+// Capture greyscale low-res frames between two times
+async function captureFrames(tStart, tEnd, onProgress) {
+  const W = Math.min(640, V.w), H = Math.round(V.h * W / V.w);
+  const c = document.createElement('canvas'); c.width = W; c.height = H;
+  const ctx = c.getContext('2d', { willReadFrequently: true });
+  const frames = []; const span = tEnd - tStart;
+  const grab = (t) => {
+    ctx.drawImage(vid, 0, 0, W, H);
+    const d = ctx.getImageData(0, 0, W, H).data, g = new Uint8Array(W * H);
+    for (let i = 0, j = 0; i < g.length; i++, j += 4) g[i] = (d[j] * 77 + d[j + 1] * 150 + d[j + 2] * 29) >> 8;
+    frames.push({ t, g }); onProgress(clamp((t - tStart) / span, 0, 1));
+  };
+  if ('requestVideoFrameCallback' in vid) {
+    await seekTo(tStart);
+    await new Promise(res => {
+      let last = -1, finished = false; const fin = () => { if (!finished) { finished = true; vid.pause(); res(); } };
+      const cb = (now, meta) => {
+        if (finished) return;
+        if (meta.mediaTime > last + 1e-4) { last = meta.mediaTime; grab(meta.mediaTime); }
+        if (meta.mediaTime >= tEnd || frames.length >= 170) { fin(); return; }
+        vid.requestVideoFrameCallback(cb);
+      };
+      vid.requestVideoFrameCallback(cb);
+      vid.addEventListener('ended', fin, { once: true });
+      try { vid.playbackRate = 0.5; } catch (e) {}
+      vid.play().catch(fin);
+      setTimeout(fin, 40000);
+    });
+    try { vid.playbackRate = 1; } catch (e) {}
+  }
+  if (frames.length < 6) { // fallback: step by seeking at 30 fps
+    frames.length = 0;
+    for (let t = tStart; t <= tEnd && frames.length < 170; t += 1 / 30) { await seekTo(t); grab(t); }
+  }
+  // frame rate from median spacing
+  const dts = []; for (let i = 1; i < frames.length; i++) dts.push(frames[i].t - frames[i - 1].t);
+  dts.sort((a, b) => a - b); const med = dts.length ? dts[Math.floor(dts.length / 2)] : 1 / 30;
+  return { W, H, frames, fps: 1 / med, k: W / V.w };
+}
+
+// ---------- TRACKER ----------
+function meanCircle(g, W, H, cx, cy, r0, r1) {
+  let s = 0, n = 0; const R = Math.ceil(r1);
+  for (let y = Math.max(0, Math.floor(cy - R)); y <= Math.min(H - 1, Math.ceil(cy + R)); y++) for (let x = Math.max(0, Math.floor(cx - R)); x <= Math.min(W - 1, Math.ceil(cx + R)); x++) {
+    const d = Math.hypot(x - cx, y - cy); if (d >= r0 && d <= r1) { s += g[y * W + x]; n++; }
+  }
+  return n ? s / n : 0;
+}
+function roiDiff(a, b, W, H, cx, cy, r) {
+  let s = 0, n = 0; const R = Math.ceil(r);
+  for (let y = Math.max(0, Math.floor(cy - R)); y <= Math.min(H - 1, Math.ceil(cy + R)); y++) for (let x = Math.max(0, Math.floor(cx - R)); x <= Math.min(W - 1, Math.ceil(cx + R)); x++) {
+    if (Math.hypot(x - cx, y - cy) <= r) { const k = y * W + x; s += Math.abs(a[k] - b[k]); n++; }
+  }
+  return n ? s / n : 0;
+}
+function findBlobs(cap, i, thr, region, excl) {
+  const { W, H } = cap, g = cap.frames[i].g, ref = V.ref;
+  const bin = new Uint8Array(W * H);
+  const x0 = clamp(region.x0, 0, W), x1 = clamp(region.x1, 0, W), y0 = clamp(region.y0, 0, H), y1 = clamp(region.y1, 0, H);
+  for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) { const k = y * W + x; if (Math.abs(g[k] - ref[k]) > thr) { const dx = x - excl.x, dy = y - excl.y; if (dx * dx + dy * dy > excl.r2) bin[k] = 1; } }
+  const out = [], stack = [];
+  for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) {
+    const k0 = y * W + x; if (bin[k0] !== 1) continue;
+    bin[k0] = 2; stack.push(k0); let area = 0, sx = 0, sy = 0, minx = x, maxx = x, miny = y, maxy = y, sum = 0;
+    while (stack.length) {
+      const q = stack.pop(); const qx = q % W, qy = (q - qx) / W; area++; sx += qx; sy += qy; sum += g[q];
+      if (qx < minx) minx = qx; if (qx > maxx) maxx = qx; if (qy < miny) miny = qy; if (qy > maxy) maxy = qy;
+      if (qx > x0 && bin[q - 1] === 1) { bin[q - 1] = 2; stack.push(q - 1); }
+      if (qx < x1 - 1 && bin[q + 1] === 1) { bin[q + 1] = 2; stack.push(q + 1); }
+      if (qy > y0 && bin[q - W] === 1) { bin[q - W] = 2; stack.push(q - W); }
+      if (qy < y1 - 1 && bin[q + W] === 1) { bin[q + W] = 2; stack.push(q + W); }
+    }
+    out.push({ area, cx: sx / area, cy: sy / area, w: maxx - minx + 1, h: maxy - miny + 1, mean: sum / area });
+  }
+  return out;
+}
+function runTracker(cap) {
+  const { W, H, frames, k } = cap;
+  const p0 = { x: V.p0.x * k, y: V.p0.y * k }, r = Math.max(2, V.r * k);
+  // reference frame: nearest to the frame the user marked
+  let ri = 0; for (let i = 1; i < frames.length; i++) if (Math.abs(frames[i].t - V.tSel) < Math.abs(frames[ri].t - V.tSel)) ri = i;
+  V.ref = frames[ri].g; V.refIdx = ri;
+  const diffs = frames.map(f => roiDiff(f.g, V.ref, W, H, p0.x, p0.y, r * 1.1));
+  // noise from frames before the reference only (after it the ball may already be gone)
+  const early = diffs.slice(Math.max(0, ri - 10), ri).sort((a, b) => a - b);
+  const noise = early.length >= 2 ? early[Math.floor(early.length / 2)] : 4;
+  const thr = Math.max(9, noise * 3 + 4);
+  let impact = -1; for (let i = 0; i < frames.length; i++) if (diffs[i] < thr) impact = i;
+  V.noise = noise; V.thrRoi = thr;
+  if (impact < 0) return { error: 'The ball ring did not match the ball on any frame. Go back and re-check the ring position and size.' };
+  if (impact >= frames.length - 1) return { error: 'The ball never left its spot inside the analysed window. Scrub to a frame closer to impact (but before the ball is hit) and try again.' };
+  V.impact = impact;
+  const dthr = Math.max(26, noise * 4 + 18);
+  const ballB = meanCircle(V.ref, W, H, p0.x, p0.y, 0, r * 0.8), bgB = meanCircle(V.ref, W, H, p0.x, p0.y, r * 1.6, r * 2.6);
+  const contrast = ballB - bgB, useBright = Math.abs(contrast) > 22;
+  const area0 = Math.PI * r * r;
+  const region = V.dir > 0 ? { x0: Math.floor(p0.x - r), x1: W, y0: 0, y1: Math.ceil(p0.y + 2.5 * r) } : { x0: 0, x1: Math.ceil(p0.x + r), y0: 0, y1: Math.ceil(p0.y + 2.5 * r) };
+  const excl = { x: p0.x, y: p0.y, r2: (1.7 * r) * (1.7 * r) };
+  const mPerPx = BALL_D / (2 * r);
+  const marks = [];
+  let prev = null, prevV = null, misses = 0;
+  for (let i = impact + 1; i < Math.min(frames.length, impact + 8); i++) {
+    const dtReal = (frames[i].t - frames[impact].t) / V.slow;
+    const maxPx = 90 * dtReal / mPerPx; // nothing leaves a club faster than ~90 m/s
+    let cands = findBlobs(cap, i, dthr, region, excl).filter(b => b.area >= Math.max(3, 0.2 * area0) && b.area <= 16 * area0 && b.h <= 5 * r + 2 && b.w <= 24 * r + 2);
+    if (useBright) cands = cands.filter(b => Math.sign(b.mean - bgB) === Math.sign(contrast) && Math.abs(b.mean - bgB) > 0.3 * Math.abs(contrast));
+    cands = cands.filter(b => V.dir * (b.cx - p0.x) > 0.6 * r && Math.hypot(b.cx - p0.x, b.cy - p0.y) <= maxPx && b.cy <= p0.y + 1.2 * r);
+    let pick = null;
+    if (prev) {
+      const ahead = cands.filter(b => V.dir * (b.cx - prev.x) > 0.3 * r && b.cy <= prev.y + 1.5 * r);
+      if (prevV) { // predict and take the closest to prediction
+        const dtp = (frames[i].t - frames[prev.i].t);
+        const px = prev.x + prevV.x * dtp, py = prev.y + prevV.y * dtp;
+        const tol = 3 * r + 0.25 * Math.hypot(prevV.x * dtp, prevV.y * dtp);
+        let best = null, bd = 1e9; for (const b of ahead) { const d = Math.hypot(b.cx - px, b.cy - py); if (d < bd && d <= tol) { bd = d; best = b; } }
+        pick = best;
+      } else { let best = null, bs = -1e9; for (const b of ahead) { const s = V.dir * (b.cx - prev.x); if (s > bs) { bs = s; best = b; } } pick = best; }
+    } else { let best = null, bs = -1e9; for (const b of cands) { const s = V.dir * (b.cx - p0.x) - 0.3 * Math.max(0, b.cy - p0.y); if (s > bs) { bs = s; best = b; } } pick = best; }
+    if (!pick) { misses++; marks.push({ i, x: null, y: null, visible: false, auto: true }); if (misses >= 2 && marks.length >= 3) break; continue; }
+    const m = { i, x: pick.cx / k, y: pick.cy / k, visible: true, auto: true, blob: pick };
+    marks.push(m);
+    if (prev) { const dtp = frames[i].t - frames[prev.i].t; prevV = { x: (pick.cx - prev.x) / dtp, y: (pick.cy - prev.y) / dtp }; }
+    prev = { i, x: pick.cx, y: pick.cy };
+  }
+  // keep the impact frame and up to five following frames for review
+  V.marks = marks.slice(0, 5);
+  return { ok: true, found: V.marks.filter(m => m.visible).length };
+}
+// snap a tap to the nearest changed blob near it (full-res coords in, full-res out)
+function snapTap(frameIdx, x, y) {
+  const cap = V.cap; if (!cap || !V.ref) return { x, y };
+  const k = cap.k, r = Math.max(2, V.r * k), lx = x * k, ly = y * k;
+  const thr = Math.max(26, V.noise * 4 + 18), R = 3.5 * r;
+  const cands = findBlobs(cap, frameIdx, thr, { x0: Math.floor(lx - R), x1: Math.ceil(lx + R), y0: Math.floor(ly - R), y1: Math.ceil(ly + R) }, { x: -1e4, y: -1e4, r2: 0 })
+    .filter(b => b.area >= 3 && b.area <= 20 * Math.PI * r * r);
+  let best = null, bd = 1e9; for (const b of cands) { const d = Math.hypot(b.cx - lx, b.cy - ly); if (d < bd) { bd = d; best = b; } }
+  if (best && bd <= 2.5 * r) return { x: best.cx / k, y: best.cy / k };
+  return { x, y };
+}
+
+// ---------- MEASUREMENT ----------
+function measure() {
+  const cap = V.cap, frames = cap.frames, imp = V.impact;
+  const pts = V.marks.filter(m => m.visible && m.x != null).sort((a, b) => a.i - b.i);
+  if (!pts.length) return { error: 'No frame has the ball marked after launch. Tap the ball in at least one frame.' };
+  const t0 = frames[imp].t, slow = V.slow;
+  const dtFrame = (1 / cap.fps) / slow;
+  const mPerPx = BALL_D / (2 * V.r);
+  const p0 = V.p0;
+  let vx, vy, tMid, conf, midPt;
+  if (pts.length >= 2) {
+    const ts = pts.map(p => (frames[p.i].t - t0) / slow), n = ts.length;
+    const mt = ts.reduce((a, b) => a + b) / n, mx = pts.reduce((a, p) => a + p.x, 0) / n, my = pts.reduce((a, p) => a + p.y, 0) / n;
+    let sxx = 0, sxy = 0, syy = 0; for (let j = 0; j < n; j++) { const d = ts[j] - mt; sxx += d * d; sxy += d * (pts[j].x - mx); syy += d * (pts[j].y - my); }
+    vx = sxy / sxx; vy = syy / sxx; tMid = mt; midPt = { x: mx, y: my };
+    conf = pts.length >= 3 ? 'good' : 'ok';
+  } else {
+    const p = pts[0]; const tau = Math.max(dtFrame * 0.5, (frames[p.i].t - t0) / slow - dtFrame * 0.5);
+    vx = (p.x - p0.x) / tau; vy = (p.y - p0.y) / tau; tMid = tau / 2; midPt = { x: (p.x + p0.x) / 2, y: (p.y + p0.y) / 2 }; conf = 'low';
+  }
+  const along = V.dir * vx * mPerPx, up = -vy * mPerPx + G * tMid; // undo gravity between launch and the measured instant
+  if (along <= 0) return { error: 'The ball seems to move away from the target side you picked. Check the "ball flies toward" setting and the marked positions.' };
+  const ball = BALLS[settings.ball];
+  const kDrag = 1.225 * ball.cd * (Math.PI * (BALL_D / 2) ** 2) / (2 * ball.mass);
+  const dMid = Math.hypot(midPt.x - p0.x, midPt.y - p0.y) * mPerPx;
+  const vMeas = Math.hypot(along, up), v0 = vMeas * Math.exp(kDrag * dMid);
+  const launchDeg = Math.atan2(up, along) * 180 / Math.PI;
+  const speedMph = v0 * settings.factor / MPH;
+  const warn = [];
+  if (launchDeg < 0) warn.push('Negative launch: the ball went down after impact as marked.');
+  if (speedMph > 215) warn.push('That speed is beyond any human swing. Check the ring size and the video speed setting.');
+  if (speedMph < 25) warn.push('Very low speed. Check that the ring size matches the ball.');
+  return { speedMph, launchDeg, conf, frames: pts.length, fps: cap.fps, slow, measMph: vMeas / MPH, dragBoost: Math.exp(kDrag * dMid), warn };
+}
+// ---------- HOME UI ----------
+const clubChips = $('#clubChips');
+for (const [k, c] of Object.entries(CLUBS)) { const b = document.createElement('button'); b.className = 'chip'; b.textContent = c.name; b.dataset.k = k; b.setAttribute('aria-pressed', String(k === settings.club)); b.addEventListener('click', () => { settings.club = k; saveSettings(); $$('.chip', clubChips).forEach(x => x.setAttribute('aria-pressed', String(x.dataset.k === k))); }); clubChips.appendChild(b); }
+const pinRange = $('#pinRange'); pinRange.value = settings.pin; $('#pinVal').textContent = settings.pin;
+pinRange.addEventListener('input', () => { settings.pin = +pinRange.value; $('#pinVal').textContent = settings.pin; saveSettings(); drawHome(); });
+const ballSel = $('#ballSel'); ballSel.value = settings.ball;
+const facRange = $('#facRange'); facRange.value = settings.factor; $('#facVal').textContent = (+settings.factor).toFixed(2);
+ballSel.addEventListener('change', () => { settings.ball = ballSel.value; settings.factor = BALLS[settings.ball].factor; facRange.value = settings.factor; $('#facVal').textContent = settings.factor.toFixed(2); saveSettings(); });
+facRange.addEventListener('input', () => { settings.factor = +facRange.value; $('#facVal').textContent = settings.factor.toFixed(2); saveSettings(); });
+const handSel = $('#handSel'); handSel.value = settings.hand; handSel.addEventListener('change', () => { settings.hand = handSel.value; saveSettings(); });
+const slowSel = $('#slowSel'); slowSel.value = String(settings.slow); slowSel.addEventListener('change', () => { settings.slow = +slowSel.value; saveSettings(); });
+
+$('#btnManual').addEventListener('click', () => { const c = CLUBS[settings.club]; mSpeed.value = c.speed; mLaunch.value = c.launch; syncManual(); show('manual'); });
+for (const id of ['#fileRec', '#fileFront', '#filePick']) $(id).addEventListener('change', async e => {
+  const f = e.target.files && e.target.files[0]; e.target.value = ''; if (!f) return;
+  setStatus('#mkStatus', 'Opening video…'); show('mark'); $('#mkNote').textContent = 'Loading…'; $('#mkAnalyze').disabled = true;
+  V.live = false; V.slow = settings.slow;
+  try { await loadVideo(f); } catch (err) { setStatus('#mkStatus', err.message, true); return; }
+  scrub.max = V.dur; scrub.value = V.tSel; dirBtns(); rRange.value = V.r; $('#rVal').textContent = V.r.toFixed(1);
+  setStatus('#mkStatus', `${V.w}×${V.h}, ${V.dur.toFixed(1)} s. Scrub to just before impact, then tap the ball.`);
+  await showMarkFrame();
+});
+function setStatus(sel, msg, err) { const el = $(sel); el.textContent = msg || ''; el.classList.toggle('err', !!err); }
+
+// ---------- MARK SCREEN ----------
+const mk = $('#mkCanvas'), mkCtx = mk.getContext('2d'), scrub = $('#scrub'), rRange = $('#rRange'), mkMag = $('#mkMag');
+let seeking = false, pendingT = null;
+async function showMarkFrame() {
+  if (seeking) { pendingT = V.tSel; return; }
+  seeking = true;
+  do { pendingT = null; await seekTo(V.tSel); } while (pendingT != null && (V.tSel = pendingT, true));
+  seeking = false;
+  drawMark();
+}
+function drawMark() {
+  if (mk.width !== V.w) { mk.width = V.w; mk.height = V.h; }
+  try { mkCtx.drawImage(vid, 0, 0, V.w, V.h); } catch (e) {}
+  $('#mkTime').textContent = `${vid.currentTime.toFixed(3)} s`;
+  if (V.p0) { drawRing(mkCtx, V.p0.x, V.p0.y, V.r, V.w); drawMag(mkMag, mk, V.p0.x, V.p0.y, V.r); $('#mkNote').textContent = 'Ball marked'; $('#mkAnalyze').disabled = false; }
+  else { $('#mkNote').textContent = 'Tap the ball'; const c = mkMag.getContext('2d'); c.fillStyle = '#000'; c.fillRect(0, 0, 224, 224); }
+}
+function drawRing(ctx, x, y, r, W) {
+  const lw = Math.max(1.5, W / 480);
+  ctx.lineWidth = lw; ctx.strokeStyle = '#ffb03b'; ctx.beginPath(); ctx.arc(x, y, r, 0, 7); ctx.stroke();
+  ctx.strokeStyle = 'rgba(0,0,0,.5)'; ctx.lineWidth = lw * 0.5; ctx.beginPath(); ctx.arc(x, y, r + lw, 0, 7); ctx.stroke();
+  ctx.strokeStyle = '#ffb03b'; ctx.lineWidth = lw; ctx.beginPath(); ctx.moveTo(x - r * 1.8, y); ctx.lineTo(x - r * 1.1, y); ctx.moveTo(x + r * 1.1, y); ctx.lineTo(x + r * 1.8, y); ctx.moveTo(x, y - r * 1.8); ctx.lineTo(x, y - r * 1.1); ctx.moveTo(x, y + r * 1.1); ctx.lineTo(x, y + r * 1.8); ctx.stroke();
+}
+function drawMag(magCv, src, x, y, r, sw, sh) {
+  const c = magCv.getContext('2d'); const s = Math.max(r * 4, 24);
+  c.imageSmoothingEnabled = true; c.fillStyle = '#000'; c.fillRect(0, 0, 224, 224);
+  try { c.drawImage(src, x - s, y - s, 2 * s, 2 * s, 0, 0, 224, 224); } catch (e) {}
+  const rr = r / (2 * s) * 224; c.strokeStyle = '#ffb03b'; c.lineWidth = 2; c.beginPath(); c.arc(112, 112, rr, 0, 7); c.stroke();
+}
+function canvasPoint(cv, ev, w, h) { const b = cv.getBoundingClientRect(); const t = ev.touches ? ev.touches[0] : ev; return { x: (t.clientX - b.left) / b.width * (w || cv.width), y: (t.clientY - b.top) / b.height * (h || cv.height) }; }
+mk.addEventListener('click', ev => { V.p0 = canvasPoint(mk, ev); drawMark(); });
+scrub.addEventListener('input', () => { V.tSel = +scrub.value; showMarkFrame(); });
+$('#scrubBack').addEventListener('click', () => { V.tSel = clamp(V.tSel - 1 / 60, 0, V.dur); scrub.value = V.tSel; showMarkFrame(); });
+$('#scrubFwd').addEventListener('click', () => { V.tSel = clamp(V.tSel + 1 / 60, 0, V.dur); scrub.value = V.tSel; showMarkFrame(); });
+rRange.addEventListener('input', () => { V.r = +rRange.value; $('#rVal').textContent = V.r.toFixed(1); drawMark(); });
+function dirBtns() { $('#dirL').setAttribute('aria-pressed', String(V.dir < 0)); $('#dirR').setAttribute('aria-pressed', String(V.dir > 0)); }
+$('#dirL').addEventListener('click', () => { V.dir = -1; dirBtns(); });
+$('#dirR').addEventListener('click', () => { V.dir = 1; dirBtns(); });
+$('#mkBack').addEventListener('click', () => show('home'));
+$('#mkAnalyze').addEventListener('click', async () => {
+  if (!V.p0) return;
+  const btn = $('#mkAnalyze'); btn.disabled = true; const prog = $('#mkProg'); prog.hidden = false; prog.value = 0;
+  setStatus('#mkStatus', 'Reading frames…');
+  try {
+    V.cap = await captureFrames(Math.max(0, V.tSel - 0.15), Math.min(V.dur, V.tSel + 2.0), p => { prog.value = Math.round(p * 100); });
+    setStatus('#mkStatus', `Read ${V.cap.frames.length} frames at ${V.cap.fps.toFixed(0)} fps. Looking for the launch…`);
+    await new Promise(r => setTimeout(r, 20));
+    const res = runTracker(V.cap);
+    prog.hidden = true;
+    if (res.error) { setStatus('#mkStatus', res.error, true); btn.disabled = false; return; }
+    if (V.r * V.cap.k < 3) setStatus('#mkStatus', 'The ball is tiny at this distance. Results will be rough; move the phone closer next time.');
+    else setStatus('#mkStatus', '');
+    await openReview();
+  } catch (err) { prog.hidden = true; setStatus('#mkStatus', 'Tracking failed: ' + err.message, true); }
+  btn.disabled = false;
+});
+
+// ---------- REVIEW SCREEN ----------
+const rv = $('#rvCanvas'), rvCtx = rv.getContext('2d'), rvMag = $('#rvMag');
+let rvSel = 0; // index into reviewFrames
+function reviewFrames() { return [{ i: V.impact, label: 'Launch', rest: true }, ...V.marks.map((m, j) => ({ i: m.i, label: `+${j + 1}`, m }))]; }
+async function openReview() {
+  rvSel = V.marks.length ? 1 : 0; show('review'); buildTabs();
+  const found = V.marks.filter(m => m.visible).length;
+  setStatus('#rvStatus', found ? `Ball found automatically in ${found} of ${V.marks.length} frames after launch. Video: ${V.cap.fps.toFixed(0)} fps${V.slow > 1 ? `, slo-mo ×${V.slow}` : ''}.` : 'The ball was not found automatically. Tap it in each frame where you can see it.');
+  await drawReview();
+}
+function buildTabs() {
+  const tabs = $('#rvTabs'); tabs.innerHTML = '';
+  reviewFrames().forEach((f, j) => { const b = document.createElement('button'); b.className = 'tab' + (f.m && !f.m.visible ? ' off' : ''); b.setAttribute('role', 'tab'); b.setAttribute('aria-selected', String(j === rvSel)); b.textContent = f.label; b.addEventListener('click', () => { rvSel = j; buildTabs(); drawReview(); }); tabs.appendChild(b); });
+}
+function drawGrey(ctx, fr, W, H) {
+  const img = ctx.createImageData(W, H), d = img.data, g = fr.g;
+  for (let i = 0, j = 0; i < g.length; i++, j += 4) { d[j] = d[j + 1] = d[j + 2] = g[i]; d[j + 3] = 255; }
+  ctx.putImageData(img, 0, 0);
+}
+async function drawReview() {
+  const f = reviewFrames()[rvSel]; const fr = V.cap.frames[f.i];
+  if (rv.width !== V.w) { rv.width = V.w; rv.height = V.h; }
+  if (V.live) drawGrey(rvCtx, fr, V.w, V.h);
+  else { await seekTo(fr.t + 0.0005); try { rvCtx.drawImage(vid, 0, 0, V.w, V.h); } catch (e) {} }
+  // ghost of the ball's rest position
+  rvCtx.setLineDash([6, 6]); rvCtx.strokeStyle = 'rgba(255,255,255,.7)'; rvCtx.lineWidth = Math.max(1, V.w / 700); rvCtx.beginPath(); rvCtx.arc(V.p0.x, V.p0.y, V.r, 0, 7); rvCtx.stroke(); rvCtx.setLineDash([]);
+  if (f.rest) { drawRing(rvCtx, V.p0.x, V.p0.y, V.r, V.w); drawMag(rvMag, rv, V.p0.x, V.p0.y, V.r); $('#rvNote').textContent = 'Last frame before launch'; $('#rvInfo').textContent = `t = ${fr.t.toFixed(3)} s. The ball is still at rest here. Nothing to mark.`; $('#rvHide').hidden = true; }
+  else {
+    $('#rvHide').hidden = false; $('#rvHide').textContent = f.m.visible ? 'Ball not visible here' : 'Ball is visible, let me tap it';
+    const dt = ((fr.t - V.cap.frames[V.impact].t) / V.slow * 1000).toFixed(1);
+    if (f.m.visible && f.m.x != null) { drawRing(rvCtx, f.m.x, f.m.y, V.r, V.w); drawMag(rvMag, rv, f.m.x, f.m.y, V.r); $('#rvNote').textContent = (f.m.auto ? 'Found by tracker' : 'Marked by you'); $('#rvInfo').textContent = `${dt} ms after launch. Tap the ball to move the ring.`; }
+    else { const c = rvMag.getContext('2d'); c.fillStyle = '#000'; c.fillRect(0, 0, 224, 224); $('#rvNote').textContent = f.m.visible ? 'Tap the ball' : 'Marked as not visible'; $('#rvInfo').textContent = `${dt} ms after launch. ${f.m.visible ? 'Tap where the ball is.' : 'This frame is skipped.'}`; }
+  }
+}
+rv.addEventListener('click', ev => {
+  const f = reviewFrames()[rvSel]; if (f.rest) return;
+  const p = canvasPoint(rv, ev); const s = snapTap(f.i, p.x, p.y);
+  f.m.x = s.x; f.m.y = s.y; f.m.visible = true; f.m.auto = false; buildTabs(); drawReview();
+});
+$('#rvHide').addEventListener('click', () => { const f = reviewFrames()[rvSel]; if (f.rest) return; f.m.visible = !f.m.visible; buildTabs(); drawReview(); });
+$('#rvBack').addEventListener('click', () => show(V.live ? 'live' : 'mark'));
+$('#rvCompute').addEventListener('click', () => {
+  const m = measure();
+  if (m.error) { setStatus('#rvStatus', m.error, true); return; }
+  if (V.live && current && current.shot.source === 'live') { shots = shots.filter(s => s !== current.shot); }
+  launchShot({ speedMph: m.speedMph, launchDeg: m.launchDeg, dirDeg: 0, source: V.live ? 'live' : 'video', meas: m }, V.live ? 'live' : 'shot');
+});
+
+// ---------- MANUAL ----------
+const mSpeed = $('#mSpeed'), mLaunch = $('#mLaunch'), mDir = $('#mDir');
+function syncManual() { $('#mSpeedVal').textContent = mSpeed.value; $('#mLaunchVal').textContent = mLaunch.value; $('#mDirVal').textContent = mDir.value; }
+for (const el of [mSpeed, mLaunch, mDir]) el.addEventListener('input', syncManual);
+$('#mBack').addEventListener('click', () => show('home'));
+$('#mHit').addEventListener('click', () => launchShot({ speedMph: +mSpeed.value, launchDeg: +mLaunch.value, dirDeg: +mDir.value, source: 'manual' }, 'shot'));
+
+// ---------- SHOT VIEWS ----------
+const TILES = [
+  ['speed', 'Ball speed', 'mph'], ['launch', 'Launch angle', '°'], ['spin', 'Spin', 'rpm'],
+  ['carry', 'Carry', 'yds'], ['total', 'Total', 'yds'], ['apex', 'Apex', 'ft'],
+  ['hang', 'Hang time', 's'], ['land', 'Land angle', '°'], ['side', 'Side', 'yds'],
+];
+function buildTiles(root) { for (const [k, label, unit] of TILES) { const d = document.createElement('div'); d.className = 'tile'; d.dataset.k = k; d.innerHTML = `<div class="k">${label}</div><div class="v"><span>–</span><small>${unit}</small></div>`; root.appendChild(d); } }
+buildTiles($('#tiles')); buildTiles($('#liveTiles'));
+const VIEWS = {
+  shot: { scene: $('#shotScene'), tiles: $('#tiles'), result: $('#shotResult'), conf: $('#shotConf'), note: $('#measureNote'), retrack: $('#shotRetrack') },
+  live: { scene: $('#liveScene'), tiles: $('#liveTiles'), result: $('#liveShotResult'), conf: $('#liveShotConf'), note: $('#liveMeasureNote'), retrack: $('#liveRetrack') },
+};
+function tile(view, k) { return view.tiles.querySelector(`.tile[data-k="${k}"]`); }
+function setTile(view, k, v, hot) { const t = tile(view, k); t.classList.remove('pending'); t.classList.toggle('hot', !!hot); $('span', t).textContent = v; }
+let current = null, anim = null;
+function launchShot(inp, viewName) {
+  const course = courseFor(settings.pin), club = CLUBS[settings.club];
+  const fly = PHYS.fly(inp.speedMph, inp.launchDeg, inp.dirDeg, club.spin);
+  const roll = PHYS.roll(fly, (x, z) => surfaceAt(course, x, z));
+  const shot = {
+    ts: Date.now(), club: settings.club, pin: settings.pin, source: inp.source,
+    speed: inp.speedMph, launch: inp.launchDeg, dir: inp.dirDeg, spin: club.spin,
+    carry: fly.carryYd, total: roll.totalYd, apex: fly.apexFt, hang: fly.hang, land: fly.landAngleDeg,
+    endX: roll.endX, endZ: roll.endZ, surface: roll.surface, meas: inp.meas || null,
+  };
+  current = { shot, fly, roll, course, view: viewName };
+  shots.push(shot); if (shots.length > 60) shots = shots.slice(-60); store.set('wlm.shots', shots);
+  renderHistory();
+  if (viewName === 'live') { $('#liveResult').hidden = false; show('live'); setTimeout(() => $('#liveResult').scrollIntoView({ behavior: 'smooth', block: 'start' }), 50); }
+  else show('shot');
+  playShot();
+}
+function describe(s) {
+  const dz = s.endZ - s.pin, dx = s.endX, d = Math.hypot(dx, dz);
+  const lr = Math.abs(dx) < 1.5 ? '' : (dx > 0 ? `${Math.abs(dx).toFixed(0)} right` : `${Math.abs(dx).toFixed(0)} left`);
+  const sl = Math.abs(dz) < 1.5 ? 'pin high' : (dz < 0 ? `${Math.abs(dz).toFixed(0)} short` : `${Math.abs(dz).toFixed(0)} long`);
+  if (d * 3 <= 2 && s.surface === 'green') return { text: 'In the hole!', cls: 'good' };
+  if (s.surface === 'green') return { text: `On the green · ${(d * 3).toFixed(0)} ft to the pin`, cls: 'good' };
+  if (s.surface === 'fringe') return { text: `Fringe · ${(d * 3).toFixed(0)} ft from the pin`, cls: 'good' };
+  if (s.surface === 'bunker') return { text: `Bunker · ${[lr, sl].filter(Boolean).join(', ')}`, cls: 'bad' };
+  if (s.surface === 'fairway') return { text: `Fairway · ${[lr, sl].filter(Boolean).join(', ')}`, cls: 'warn' };
+  return { text: `Rough · ${[lr, sl].filter(Boolean).join(', ')}`, cls: 'bad' };
+}
+function playShot() {
+  if (anim) cancelAnimationFrame(anim);
+  const { shot, fly, roll, course } = current; const view = VIEWS[current.view];
+  const cv = view.scene;
+  for (const [k] of TILES) tile(view, k).classList.add('pending');
+  setTile(view, 'speed', shot.speed.toFixed(1), true); setTile(view, 'launch', shot.launch.toFixed(1), true); setTile(view, 'spin', shot.spin.toLocaleString());
+  for (const k of ['carry', 'total', 'apex', 'hang', 'land', 'side']) { tile(view, k).classList.add('pending'); $('span', tile(view, k)).textContent = '–'; }
+  view.result.textContent = `${CLUBS[shot.club].name} · pin ${shot.pin} yds`; view.result.className = 'result';
+  const confEl = view.conf;
+  if (shot.meas) { const m = shot.meas; const lab = { good: 'Tracked · ' + m.frames + ' frames', ok: 'Tracked · 2 frames', low: 'Low confidence · 1 frame' }[m.conf]; confEl.textContent = lab; confEl.className = 'conf ' + (m.conf === 'good' ? 'good' : m.conf === 'ok' ? 'warn' : 'bad'); confEl.hidden = false; }
+  else { confEl.textContent = 'Typed in'; confEl.className = 'conf'; confEl.hidden = false; }
+  if (shot.meas) { const m = shot.meas; view.note.textContent = `Measured ${m.measMph.toFixed(1)} mph in the video (${m.fps.toFixed(0)} fps${m.slow > 1 ? `, slo-mo ×${m.slow}` : ''}); corrected ×${m.dragBoost.toFixed(2)} for the ${BALLS[settings.ball].name.toLowerCase()}'s drag in the first metre and ×${settings.factor.toFixed(2)} calibration. ${m.warn.join(' ')}`; }
+  else view.note.textContent = 'Numbers typed in by hand. Spin from the club table.';
+  view.retrack.hidden = !shot.meas;
+  const ghosts = shots.filter(s => s !== shot && s.pin === shot.pin).slice(-12).map(s => ({ x: s.endX, z: s.endZ }));
+  const path = fly.path.map(p => ({ t: p.t, x: p.x / YD, y: p.y / YD, z: p.z / YD }));
+  const rollPts = roll.pts.map(p => ({ t: fly.hang + p.t, x: p.x / YD, y: 0.02, z: p.z / YD }));
+  const all = path.concat(rollPts.slice(1)); const tEnd = all[all.length - 1].t;
+  const start = performance.now(); let landed = false, mode = 'tee';
+  const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const frame = () => {
+    const { ctx, W, H } = fitCanvas(cv);
+    let t = reduced ? tEnd + 2 : (performance.now() - start) / 1000;
+    let idx = 0; while (idx < all.length - 1 && all[idx + 1].t <= t) idx++;
+    let ball;
+    if (t >= tEnd) ball = all[all.length - 1];
+    else { const a = all[idx], b = all[Math.min(idx + 1, all.length - 1)]; const u = b.t > a.t ? clamp((t - a.t) / (b.t - a.t), 0, 1) : 0; ball = { x: a.x + (b.x - a.x) * u, y: a.y + (b.y - a.y) * u, z: a.z + (b.z - a.z) * u }; }
+    const trail = all.slice(0, idx + 1).concat([ball]).filter(p => p.y >= 0);
+    if (!landed && t >= fly.hang) { landed = true; setTile(view, 'carry', shot.carry.toFixed(0), true); setTile(view, 'apex', shot.apex.toFixed(0)); setTile(view, 'hang', shot.hang.toFixed(1)); setTile(view, 'land', shot.land.toFixed(0)); setTile(view, 'side', (shot.endX >= 0 ? 'R ' : 'L ') + Math.abs(shot.endX).toFixed(0)); }
+    if (t >= tEnd + 0.4 && mode === 'tee') { mode = 'land'; setTile(view, 'total', shot.total.toFixed(0), true); const d = describe(shot); view.result.textContent = d.text; view.result.className = 'result ' + d.cls; drawShotMap(); }
+    const cam = mode === 'tee' ? teeCam(W, H, course) : landCam(W, H, course, { x: shot.endX, z: shot.endZ });
+    drawScene(ctx, cam, course, { ball: { x: ball.x, y: Math.max(ball.y, 0.02), z: ball.z }, trail: mode === 'tee' ? trail : all.filter(p => p.y >= 0), ghosts });
+    if (t < tEnd + 0.6) anim = requestAnimationFrame(frame); else anim = null;
+  };
+  anim = requestAnimationFrame(frame);
+}
+$('#shotReplay').addEventListener('click', playShot);
+$('#liveReplay').addEventListener('click', playShot);
+$('#shotNext').addEventListener('click', () => show('home'));
+$('#shotRetrack').addEventListener('click', () => { shots.pop(); store.set('wlm.shots', shots); renderHistory(); show('review'); drawReview(); });
+$('#liveRetrack').addEventListener('click', () => { if (!current || !current.shot.meas) return; show('review'); buildTabs(); drawReview(); });
+
+// ---------- LIVE CAMERA ----------
+const cam = $('#cam'), liveOv = $('#liveOv'), liveWrap = $('#liveWrap'), liveMag = $('#liveMag');
+const L = { stream: null, running: false, facing: 'environment', W: 0, H: 0, k: 1, ring: [], ref: null, p0: null, r: 10, dir: 1, state: 'setup', thr: 12, noise: 3, stable: 0, impactFrame: null, post: 0, fpsEst: 30, lastT: -1, lock: null, pending: false, c: null, ctx: null };
+const liveSupported = !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
+$('#btnLive').addEventListener('click', async () => {
+  show('live'); $('#liveResult').hidden = true;
+  if (!liveSupported) { $('#liveNote').textContent = 'Camera unavailable'; setStatus('#liveStatus', window.isSecureContext ? 'This browser or app does not allow the live camera here. Open the page in Chrome or Safari, or use a recorded clip.' : 'Live camera needs this page served over https. Open it from an https link in Chrome or Safari, or use a recorded clip.', true); $('#liveArm').disabled = true; return; }
+  await startCamera();
+});
+async function startCamera() {
+  stopCamera();
+  $('#liveNote').textContent = 'Starting camera…'; setStatus('#liveStatus', '');
+  try {
+    L.stream = await navigator.mediaDevices.getUserMedia({ audio: false, video: { facingMode: L.facing, width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 60, min: 24 } } });
+  } catch (e) {
+    try { L.stream = await navigator.mediaDevices.getUserMedia({ audio: false, video: { facingMode: L.facing } }); }
+    catch (e2) { $('#liveNote').textContent = 'No camera'; setStatus('#liveStatus', 'Camera permission was refused or no camera was found. Allow the camera for this site and try again, or use a recorded clip.', true); return; }
+  }
+  cam.srcObject = L.stream;
+  await new Promise(res => { if (cam.readyState >= 1) res(); else cam.addEventListener('loadedmetadata', res, { once: true }); });
+  try { await cam.play(); } catch (e) {}
+  const tr = L.stream.getVideoTracks()[0]; const st = tr.getSettings ? tr.getSettings() : {};
+  L.vw = cam.videoWidth || st.width || 1280; L.vh = cam.videoHeight || st.height || 720;
+  L.W = Math.min(640, L.vw); L.H = Math.round(L.vh * L.W / L.vw); L.k = L.W / L.vw;
+  L.c = document.createElement('canvas'); L.c.width = L.W; L.c.height = L.H; L.ctx = L.c.getContext('2d', { willReadFrequently: true });
+  liveOv.width = L.W; liveOv.height = L.H;
+  L.r = clamp(L.W / 70, 3, 40); $('#lrRange').value = L.r; $('#lrVal').textContent = L.r.toFixed(1);
+  L.dir = settings.hand === 'L' ? -1 : 1; ldirBtns();
+  L.p0 = null; L.ref = null; L.state = 'setup'; L.ring = []; L.running = true; L.lastT = -1;
+  $('#liveArm').disabled = true; $('#liveArm').textContent = 'Arm';
+  $('#liveNote').textContent = 'Tap the ball';
+  setStatus('#liveStatus', `Camera ${L.vw}×${L.vh}${st.frameRate ? `, ${Math.round(st.frameRate)} fps` : ''}. Tap the ball, size the ring, then arm.`);
+  try { if (navigator.wakeLock) L.lock = await navigator.wakeLock.request('screen'); } catch (e) {}
+  if ('requestVideoFrameCallback' in cam) { if (!L.pending) { L.pending = true; cam.requestVideoFrameCallback(liveFrame); } }
+  else { L.useRaf = true; requestAnimationFrame(liveRaf); }
+}
+function stopCamera() {
+  L.running = false;
+  if (L.stream) { for (const t of L.stream.getTracks()) t.stop(); L.stream = null; }
+  cam.srcObject = null;
+  if (L.lock) { try { L.lock.release(); } catch (e) {} L.lock = null; }
+  liveWrap.className = 'frameWrap';
+}
+function grabLive(t) {
+  L.ctx.drawImage(cam, 0, 0, L.W, L.H);
+  const d = L.ctx.getImageData(0, 0, L.W, L.H).data, g = new Uint8Array(L.W * L.H);
+  for (let i = 0, j = 0; i < g.length; i++, j += 4) g[i] = (d[j] * 77 + d[j + 1] * 150 + d[j + 2] * 29) >> 8;
+  const fr = { t, g }; L.ring.push(fr); while (L.ring.length > 60 && L.state !== 'tracking') L.ring.shift(); return fr;
+}
+function liveRaf(now) { if (!L.running) return; const t = now / 1000; if (t - L.lastT >= 1 / 61) { L.lastT = t; const fr = grabLive(t); liveStep(fr); } requestAnimationFrame(liveRaf); }
+function liveFrame(now, meta) {
+  L.pending = false; if (!L.running) return;
+  const t = meta.mediaTime != null ? meta.mediaTime : now / 1000;
+  if (t > L.lastT + 1e-4) { L.lastT = t; const fr = grabLive(t); liveStep(fr); }
+  L.pending = true; cam.requestVideoFrameCallback(liveFrame);
+}
+function liveStep(fr) {
+  if (L.p0) {
+    const base = L.ref || (L.ring.length > 1 ? L.ring[L.ring.length - 2].g : null);
+    if (base) {
+      const d = roiDiff(fr.g, base, L.W, L.H, L.p0.x, L.p0.y, L.r * 1.1); L.lastDiff = d;
+      if (L.state === 'armed') { if (d > L.thr) { L.state = 'tracking'; L.impactFrame = L.ring[L.ring.length - 2]; L.post = 0; liveWrap.className = 'frameWrap tracking'; $('#liveNote').textContent = 'Launch!'; } }
+      else if (L.state === 'tracking') { L.post++; if (L.post >= 8) finishLiveShot(); }
+      else if (L.state === 'wait') {
+        // re-arm when the spot is still: quickly if it matches the old reference (ball is back), after 2 s otherwise (lighting changed)
+        const prev = L.ring.length > 1 ? L.ring[L.ring.length - 2].g : null;
+        const dPrev = prev ? roiDiff(fr.g, prev, L.W, L.H, L.p0.x, L.p0.y, L.r * 1.1) : 99;
+        if (dPrev < L.thr) { L.stable++; if (L.stable >= 15 && (d < L.thr || L.stable >= 60)) armLive(); } else L.stable = 0;
+      }
+      else if (L.state === 'setup') { /* waiting for the user to arm */ }
+    }
+  }
+  drawLiveOverlay(fr);
+}
+function armLive() {
+  // reference = current frame with the ball at rest; noise from the recent stable frames
+  const n = L.ring.length, ref = L.ring[n - 1].g; const diffs = [];
+  for (let i = Math.max(0, n - 12); i < n - 1; i++) diffs.push(roiDiff(L.ring[i].g, ref, L.W, L.H, L.p0.x, L.p0.y, L.r * 1.1));
+  diffs.sort((a, b) => a - b); L.noise = diffs.length ? diffs[Math.floor(diffs.length / 2)] : 3;
+  L.thr = Math.max(9, L.noise * 3 + 4); L.ref = ref; L.state = 'armed'; L.stable = 0;
+  liveWrap.className = 'frameWrap armed'; $('#liveNote').textContent = 'Armed · hit when ready'; $('#liveArm').textContent = 'Pause';
+  setStatus('#liveStatus', 'Armed. Hit the ball. After the shot, set the next ball on the same spot and it re-arms by itself.');
+}
+function disarmLive(msg) { L.state = 'setup'; L.ref = null; liveWrap.className = 'frameWrap'; $('#liveNote').textContent = msg || 'Paused'; $('#liveArm').textContent = 'Arm'; }
+function finishLiveShot() {
+  L.state = 'wait'; L.stable = 0; liveWrap.className = 'frameWrap';
+  const impactIdx = Math.max(0, L.ring.indexOf(L.impactFrame)); const i0 = Math.max(0, impactIdx - 4), frames = L.ring.slice(i0);
+  const dts = []; for (let i = 1; i < frames.length; i++) dts.push(frames[i].t - frames[i - 1].t); dts.sort((a, b) => a - b);
+  const fps = dts.length ? 1 / dts[Math.floor(dts.length / 2)] : 30;
+  V.live = true; V.slow = 1; V.w = L.W; V.h = L.H; V.p0 = { x: L.p0.x, y: L.p0.y }; V.r = L.r; V.dir = L.dir;
+  V.cap = { W: L.W, H: L.H, frames, fps, k: 1 }; V.tSel = frames[Math.min(frames.length - 1, impactIdx - i0)].t;
+  const res = runTracker(V.cap);
+  if (res.error || !res.found) { $('#liveNote').textContent = 'Missed it'; setStatus('#liveStatus', (res.error ? 'Something moved near the ball but no launch was seen. ' : 'The ball left but was not seen in flight. ') + 'It re-arms once the spot is still. If this keeps happening, move the phone back a bit or use a ball that stands out from the background.', true); return; }
+  const m = measure();
+  if (m.error) { $('#liveNote').textContent = 'Missed it'; setStatus('#liveStatus', m.error + ' Set a ball on the spot to re-arm.', true); return; }
+  $('#liveNote').textContent = 'Shot!'; setStatus('#liveStatus', `Tracked in ${res.found} frame${res.found === 1 ? '' : 's'} at ${fps.toFixed(0)} fps. Place the next ball to re-arm.`);
+  launchShot({ speedMph: m.speedMph, launchDeg: m.launchDeg, dirDeg: 0, source: 'live', meas: m }, 'live');
+}
+function drawLiveOverlay(fr) {
+  const c = liveOv.getContext('2d'); c.clearRect(0, 0, L.W, L.H);
+  if (!L.p0) return;
+  drawRing(c, L.p0.x, L.p0.y, L.r, L.W * 1.6);
+  if (L.state === 'tracking' || L.state === 'wait') { for (const m of V.marks || []) if (m.visible && m.x != null && V.live) { c.strokeStyle = '#6fd37c'; c.lineWidth = 2; c.beginPath(); c.arc(m.x, m.y, L.r, 0, 7); c.stroke(); } }
+  // magnifier from the grey frame
+  const mc = liveMag.getContext('2d'); const s = Math.max(L.r * 4, 16);
+  const img = L.ctx.getImageData(Math.max(0, Math.round(L.p0.x - s)), Math.max(0, Math.round(L.p0.y - s)), Math.max(1, Math.round(2 * s)), Math.max(1, Math.round(2 * s)));
+  const tmp = L.tmp || (L.tmp = document.createElement('canvas')); tmp.width = img.width; tmp.height = img.height; tmp.getContext('2d').putImageData(img, 0, 0);
+  mc.imageSmoothingEnabled = false; mc.fillStyle = '#000'; mc.fillRect(0, 0, 224, 224); mc.drawImage(tmp, 0, 0, 224, 224);
+  const rr = L.r / (2 * s) * 224; mc.strokeStyle = '#ffb03b'; mc.lineWidth = 2; mc.beginPath(); mc.arc(112, 112, rr, 0, 7); mc.stroke();
+  if (L.lastDiff != null && L.state !== 'setup') { mc.fillStyle = L.lastDiff > L.thr ? '#ff6f61' : '#6fd37c'; mc.font = '12px Barlow, Arial, sans-serif'; mc.fillText(`${L.lastDiff.toFixed(0)} / ${L.thr.toFixed(0)}`, 6, 216); }
+}
+liveWrap.addEventListener('click', ev => {
+  if (!L.running) return;
+  // map tap to low-res frame coords, accounting for object-fit: contain letterboxing
+  const b = liveWrap.getBoundingClientRect(); const scale = Math.min(b.width / L.W, b.height / L.H); const ox = (b.width - L.W * scale) / 2, oy = (b.height - L.H * scale) / 2;
+  const x = (ev.clientX - b.left - ox) / scale, y = (ev.clientY - b.top - oy) / scale;
+  if (x < 0 || y < 0 || x > L.W || y > L.H) return;
+  L.p0 = { x, y }; disarmLive('Ball marked · tap Arm'); $('#liveArm').disabled = false;
+  setStatus('#liveStatus', 'Check the ring in the zoom box. Size it to the ball, pick the direction, then tap Arm.');
+});
+$('#lrRange').addEventListener('input', () => { L.r = +$('#lrRange').value; $('#lrVal').textContent = L.r.toFixed(1); if (L.state !== 'setup') disarmLive('Ring changed · tap Arm'); });
+function ldirBtns() { $('#ldirL').setAttribute('aria-pressed', String(L.dir < 0)); $('#ldirR').setAttribute('aria-pressed', String(L.dir > 0)); }
+$('#ldirL').addEventListener('click', () => { L.dir = -1; ldirBtns(); });
+$('#ldirR').addEventListener('click', () => { L.dir = 1; ldirBtns(); });
+$('#liveArm').addEventListener('click', () => { if (!L.p0) return; if (L.state === 'setup') { L.stable = 0; armLive(); } else disarmLive('Paused · tap Arm'); });
+$('#liveFlip').addEventListener('click', async () => { L.facing = L.facing === 'environment' ? 'user' : 'environment'; await startCamera(); });
+$('#liveBack').addEventListener('click', () => { stopCamera(); show('home'); });
+document.addEventListener('visibilitychange', () => { if (document.hidden && L.running) disarmLive('Paused · tap Arm'); });
+// the overlay canvas must match the letterboxed video box
+function syncOverlay() { if (!L.running) return; const b = liveWrap.getBoundingClientRect(); const scale = Math.min(b.width / L.W, b.height / L.H); liveOv.style.width = (L.W * scale) + 'px'; liveOv.style.height = (L.H * scale) + 'px'; liveOv.style.left = ((b.width - L.W * scale) / 2) + 'px'; liveOv.style.top = ((b.height - L.H * scale) / 2) + 'px'; }
+setInterval(syncOverlay, 500);
+
+// ---------- HOME SCENE, HISTORY, MAP ----------
+function drawHome() {
+  const cv = $('#homeScene'); const { ctx, W, H } = fitCanvas(cv); const course = courseFor(settings.pin);
+  const ghosts = shots.filter(s => s.pin === settings.pin).slice(-12).map(s => ({ x: s.endX, z: s.endZ }));
+  drawScene(ctx, teeCam(W, H, course), course, { ball: { x: 0, y: 0.02, z: 0 }, ghosts });
+  drawShotMap();
+}
+function renderHistory() {
+  $('#sessCount').textContent = `${shots.length} shot${shots.length === 1 ? '' : 's'}`;
+  const w = $('#histWrap');
+  if (!shots.length) { w.innerHTML = '<p class="hint">No shots yet. Your shots will be listed here with carry, total and where they finished.</p>'; return; }
+  const rows = shots.slice().reverse().slice(0, 25).map((s, j) => { const d = describe(s); return `<tr><td>${shots.length - j}</td><td>${CLUBS[s.club] ? CLUBS[s.club].name : s.club}</td><td>${s.speed.toFixed(0)}</td><td>${s.launch.toFixed(0)}°</td><td>${s.carry.toFixed(0)}</td><td>${s.total.toFixed(0)}</td><td style="text-align:left">${d.text}</td></tr>`; }).join('');
+  w.innerHTML = `<table><thead><tr><th>#</th><th style="text-align:left">Club</th><th>mph</th><th>Launch</th><th>Carry</th><th>Total</th><th style="text-align:left">Finish</th></tr></thead><tbody>${rows}</tbody></table>`;
+}
+function drawShotMap() {
+  const cv = $('#shotMap'); const dpr = Math.min(2, devicePixelRatio || 1); const w = cv.clientWidth || 150, h = cv.clientHeight || 300;
+  cv.width = w * dpr; cv.height = h * dpr; const ctx = cv.getContext('2d'); ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  const course = courseFor(settings.pin); const zMax = course.pin + 45, xHalf = Math.max(40, (zMax) * w / h / 2);
+  const sx = x => w / 2 + x / xHalf * (w / 2), sz = z => h - 8 - z / zMax * (h - 16);
+  ctx.fillStyle = COL.rough; ctx.fillRect(0, 0, w, h);
+  ctx.fillStyle = COL.fairway; ctx.fillRect(sx(-course.fairwayHalf), sz(course.fairwayEnd), sx(course.fairwayHalf) - sx(-course.fairwayHalf), sz(-3) - sz(course.fairwayEnd));
+  const ell = (e, col) => { ctx.fillStyle = col; ctx.beginPath(); ctx.ellipse(sx(e.x), sz(e.z), e.rx / xHalf * (w / 2), e.rz / zMax * (h - 16), 0, 0, 7); ctx.fill(); };
+  ell(course.fringe, COL.fringe); ell(course.green, COL.green); for (const b of course.bunkers) ell(b, COL.bunker);
+  ctx.fillStyle = '#ffb03b'; ctx.fillRect(sx(0) - 1, sz(course.pin) - 6, 2, 6); ctx.beginPath(); ctx.moveTo(sx(0) + 1, sz(course.pin) - 6); ctx.lineTo(sx(0) + 6, sz(course.pin) - 4); ctx.lineTo(sx(0) + 1, sz(course.pin) - 2); ctx.fill();
+  ctx.fillStyle = 'rgba(255,255,255,.8)'; ctx.font = '10px Barlow, Arial, sans-serif'; ctx.textAlign = 'left';
+  for (const z of [50, 100, 150, 200, 250]) if (z < zMax) { ctx.fillRect(2, sz(z), 6, 1); ctx.fillText(String(z), 10, sz(z) + 3); }
+  const same = shots.filter(s => s.pin === course.pin);
+  same.forEach((s, j) => { const last = j === same.length - 1; ctx.fillStyle = last ? '#ffb03b' : 'rgba(255,255,255,.85)'; ctx.beginPath(); ctx.arc(sx(s.endX), sz(s.endZ), last ? 4.5 : 3, 0, 7); ctx.fill(); if (last) { ctx.strokeStyle = '#ffb03b'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(sx(s.endX), sz(s.endZ), 8, 0, 7); ctx.stroke(); } });
+  if (!same.length) { ctx.fillStyle = 'rgba(255,255,255,.75)'; ctx.textAlign = 'center'; ctx.fillText('shots to this pin land here', w / 2, h / 2); }
+}
+$('#btnClear').addEventListener('click', () => { if (!shots.length) return; const b = $('#btnClear'); if (b.dataset.arm === '1') { shots = []; store.set('wlm.shots', shots); renderHistory(); drawHome(); b.textContent = 'Clear session'; b.dataset.arm = ''; } else { b.dataset.arm = '1'; b.textContent = 'Tap again to clear ' + shots.length + ' shots'; setTimeout(() => { b.dataset.arm = ''; b.textContent = 'Clear session'; }, 4000); } });
+
+window.addEventListener('resize', () => { if (!$('#s-home').hidden) drawHome(); else if (!anim && current) playShot(); });
+renderHistory(); syncManual(); show("home");
+})();
+</script>
+</body>
+</html>
