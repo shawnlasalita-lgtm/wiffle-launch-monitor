@@ -265,6 +265,8 @@ progress { width: 100%; accent-color: var(--accent); height: 8px; }
       <div class="grow">
         <label class="field">Ring size <span class="val"><span id="lrVal">10</span> px</span>
           <input type="range" id="lrRange" min="2" max="60" step="0.5" value="10"></label>
+        <label class="field" id="zoomField" hidden>Camera zoom <span class="val"><span id="zoomVal">1.0</span>×</span>
+          <input type="range" id="zoomRange" min="1" max="4" step="0.1" value="1"></label>
         <div class="eyebrow" style="margin-top:8px">Ball flies toward the</div>
         <div class="chips" role="group" aria-label="Target direction">
           <button class="chip" id="ldirL" aria-pressed="false">← Left</button>
@@ -1032,6 +1034,10 @@ async function startCamera() {
   $('#liveNote').textContent = 'Tap the ball';
   setStatus('#liveStatus', `Camera ${L.vw}×${L.vh}${st.frameRate ? `, ${Math.round(st.frameRate)} fps` : ''}. Tap the ball, size the ring, then arm.`);
   try { if (navigator.wakeLock) L.lock = await navigator.wakeLock.request('screen'); } catch (e) {}
+  // camera zoom, where the device exposes it
+  const caps = tr.getCapabilities ? tr.getCapabilities() : {}; const zf = $('#zoomField');
+  if (caps.zoom && caps.zoom.max > caps.zoom.min) { L.track = tr; const zr = $('#zoomRange'); zr.min = caps.zoom.min; zr.max = Math.min(caps.zoom.max, 6); zr.step = caps.zoom.step || 0.1; zr.value = st.zoom || caps.zoom.min; $('#zoomVal').textContent = (+zr.value).toFixed(1); zf.hidden = false; }
+  else { zf.hidden = true; L.track = null; }
   if ('requestVideoFrameCallback' in cam) { if (!L.pending) { L.pending = true; cam.requestVideoFrameCallback(liveFrame); } }
   else { L.useRaf = true; requestAnimationFrame(liveRaf); }
 }
@@ -1119,6 +1125,7 @@ liveWrap.addEventListener('click', ev => {
   L.p0 = { x, y }; disarmLive('Ball marked · tap Arm'); $('#liveArm').disabled = false;
   setStatus('#liveStatus', 'Check the ring in the zoom box. Size it to the ball, pick the direction, then tap Arm.');
 });
+$('#zoomRange').addEventListener('input', async () => { const z = +$('#zoomRange').value; $('#zoomVal').textContent = z.toFixed(1); if (L.track) { try { await L.track.applyConstraints({ advanced: [{ zoom: z }] }); } catch (e) {} if (L.state !== 'setup') disarmLive('Zoom changed · tap the ball again'); } });
 $('#lrRange').addEventListener('input', () => { L.r = +$('#lrRange').value; $('#lrVal').textContent = L.r.toFixed(1); if (L.state !== 'setup') disarmLive('Ring changed · tap Arm'); });
 function ldirBtns() { $('#ldirL').setAttribute('aria-pressed', String(L.dir < 0)); $('#ldirR').setAttribute('aria-pressed', String(L.dir > 0)); }
 $('#ldirL').addEventListener('click', () => { L.dir = -1; ldirBtns(); });
