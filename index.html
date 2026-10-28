@@ -260,6 +260,7 @@ progress { width: 100%; accent-color: var(--accent); height: 8px; }
     <h2>Live camera</h2>
     <div class="frameWrap" id="liveWrap"><video id="cam" playsinline muted autoplay></video><canvas id="liveOv" style="position:absolute;left:0;top:0;width:100%;height:100%"></canvas><div class="overlayNote" id="liveNote">Starting camera…</div></div>
     <div class="status" id="liveStatus" style="margin-top:8px"></div>
+    <div class="foot" id="liveDiag" style="margin-top:4px">Camera not started.</div>
     <div class="magWrap" style="margin-top:8px">
       <canvas class="mag" id="liveMag" width="224" height="224" aria-label="Zoomed view of the ball ring"></canvas>
       <div class="grow">
@@ -1017,11 +1018,11 @@ async function startCamera() {
     L.stream = await navigator.mediaDevices.getUserMedia({ audio: false, video: { facingMode: L.facing, width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 60, min: 24 } } });
   } catch (e) {
     try { L.stream = await navigator.mediaDevices.getUserMedia({ audio: false, video: { facingMode: L.facing } }); }
-    catch (e2) { $('#liveNote').textContent = 'No camera'; setStatus('#liveStatus', 'Camera permission was refused or no camera was found. Allow the camera for this site and try again, or use a recorded clip.', true); return; }
+    catch (e2) { $('#liveNote').textContent = 'No camera'; $('#liveDiag').textContent = 'Camera error: ' + (e2 && e2.name) + ' ' + (e2 && e2.message); setStatus('#liveStatus', 'Camera permission was refused or no camera was found. Allow the camera for this site and try again, or use a recorded clip.', true); return; }
   }
-  cam.srcObject = L.stream;
-  await new Promise(res => { if (cam.readyState >= 1) res(); else cam.addEventListener('loadedmetadata', res, { once: true }); });
-  try { await cam.play(); } catch (e) {}
+  cam.srcObject = L.stream; $('#liveDiag').textContent = 'Camera permission granted, waiting for the first picture…';
+  await new Promise(res => { if (cam.readyState >= 1) res(); else cam.addEventListener('loadedmetadata', res, { once: true }); setTimeout(res, 4000); });
+  try { await cam.play(); } catch (e) { $('#liveDiag').textContent = 'Preview could not start: ' + e.message; }
   const tr = L.stream.getVideoTracks()[0]; const st = tr.getSettings ? tr.getSettings() : {};
   L.vw = cam.videoWidth || st.width || 1280; L.vh = cam.videoHeight || st.height || 720;
   L.W = Math.min(640, L.vw); L.H = Math.round(L.vh * L.W / L.vw); L.k = L.W / L.vw;
@@ -1062,6 +1063,14 @@ function liveFrame(now, meta) {
   L.pending = true; cam.requestVideoFrameCallback(liveFrame);
 }
 function liveStep(fr) {
+  L.nFrames = (L.nFrames || 0) + 1;
+  const nowMs = performance.now();
+  if (!L.diagT || nowMs - L.diagT > 1000) {
+    const fps = L.diagT ? (L.nFrames - (L.diagN || 0)) / ((nowMs - L.diagT) / 1000) : 0;
+    L.diagT = nowMs; L.diagN = L.nFrames;
+    const names = { setup: L.p0 ? 'ball marked, not armed' : 'waiting for you to tap the ball', armed: 'armed', tracking: 'tracking a launch', wait: 'waiting for the next ball' };
+    $('#liveDiag').textContent = `Camera running · ${L.vw}×${L.vh} · ${fps.toFixed(0)} frames/s analysed · ${names[L.state] || L.state}`;
+  }
   if (L.p0) {
     const base = L.ref || (L.ring.length > 1 ? L.ring[L.ring.length - 2].g : null);
     if (base) {
@@ -1116,15 +1125,19 @@ function drawLiveOverlay(fr) {
   const rr = L.r / (2 * s) * 224; mc.strokeStyle = '#ffb03b'; mc.lineWidth = 2; mc.beginPath(); mc.arc(112, 112, rr, 0, 7); mc.stroke();
   if (L.lastDiff != null && L.state !== 'setup') { mc.fillStyle = L.lastDiff > L.thr ? '#ff6f61' : '#6fd37c'; mc.font = '12px Barlow, Arial, sans-serif'; mc.fillText(`${L.lastDiff.toFixed(0)} / ${L.thr.toFixed(0)}`, 6, 216); }
 }
-liveWrap.addEventListener('click', ev => {
+let lastTapAt = 0;
+function liveTap(ev) {
   if (!L.running) return;
+  if (performance.now() - lastTapAt < 400) return; lastTapAt = performance.now();
   // map tap to low-res frame coords, accounting for object-fit: contain letterboxing
   const b = liveWrap.getBoundingClientRect(); const scale = Math.min(b.width / L.W, b.height / L.H); const ox = (b.width - L.W * scale) / 2, oy = (b.height - L.H * scale) / 2;
   const x = (ev.clientX - b.left - ox) / scale, y = (ev.clientY - b.top - oy) / scale;
   if (x < 0 || y < 0 || x > L.W || y > L.H) return;
   L.p0 = { x, y }; disarmLive('Ball marked · tap Arm'); $('#liveArm').disabled = false;
   setStatus('#liveStatus', 'Check the ring in the zoom box. Size it to the ball, pick the direction, then tap Arm.');
-});
+}
+liveWrap.addEventListener('click', liveTap);
+liveWrap.addEventListener('pointerup', liveTap);
 $('#zoomRange').addEventListener('input', async () => { const z = +$('#zoomRange').value; $('#zoomVal').textContent = z.toFixed(1); if (L.track) { try { await L.track.applyConstraints({ advanced: [{ zoom: z }] }); } catch (e) {} if (L.state !== 'setup') disarmLive('Zoom changed · tap the ball again'); } });
 $('#lrRange').addEventListener('input', () => { L.r = +$('#lrRange').value; $('#lrVal').textContent = L.r.toFixed(1); if (L.state !== 'setup') disarmLive('Ring changed · tap Arm'); });
 function ldirBtns() { $('#ldirL').setAttribute('aria-pressed', String(L.dir < 0)); $('#ldirR').setAttribute('aria-pressed', String(L.dir > 0)); }
